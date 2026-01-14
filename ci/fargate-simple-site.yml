@@ -58,16 +58,6 @@ Parameters:
     Default: 80
     Description: Container port exposed by the task.
 
-  HealthCheckPath:
-    Type: String
-    Default: /
-    Description: ALB target group health check path.
-
-  AppContainerName:
-    Type: String
-    Default: app
-    Description: ECS container name used in imagedefinitions.json.
-
 Resources:
   ArtifactsBucket:
     Type: AWS::S3::Bucket
@@ -256,7 +246,7 @@ Resources:
       TargetType: ip
       VpcId: !Ref Vpc
       HealthCheckEnabled: true
-      HealthCheckPath: !Ref HealthCheckPath
+      HealthCheckPath: /
       Matcher:
         HttpCode: "200-399"
 
@@ -338,7 +328,7 @@ Resources:
       Memory: !Ref Memory
       ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
       ContainerDefinitions:
-        - Name: !Ref AppContainerName
+        - Name: app
           Image: !Sub "${SiteEcrRepository.RepositoryUri}:latest"
           Essential: true
           PortMappings:
@@ -373,7 +363,7 @@ Resources:
             - !Ref PublicSubnetA
             - !Ref PublicSubnetB
       LoadBalancers:
-        - ContainerName: !Ref AppContainerName
+        - ContainerName: app
           ContainerPort: !Ref ContainerPort
           TargetGroupArn: !Ref TargetGroup
 
@@ -442,8 +432,6 @@ Resources:
         EnvironmentVariables:
           - Name: ECR_REPO_URI
             Value: !GetAtt SiteEcrRepository.RepositoryUri
-          - Name: CONTAINER_NAME
-            Value: !Ref AppContainerName
       TimeoutInMinutes: 30
 
   CodePipelineRole:

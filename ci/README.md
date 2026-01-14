@@ -35,7 +35,7 @@ Use your preferred deployment mechanism (Console, CLI, or IaC orchestration). Ex
 aws cloudformation deploy \
   --stack-name simple-site-fargate \
   --template-file ci/fargate-simple-site.yml \
-  --capabilities CAPABILITY_NAMED_IAM \
+  --capabilities CAPABILITY_IAM \
   --parameter-overrides \
     ProjectName=simple-site \
     DomainName=www.example.com \

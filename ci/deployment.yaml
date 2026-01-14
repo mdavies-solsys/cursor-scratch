@@ -15,9 +15,5 @@ parameters:
   Cpu: "256"
   Memory: "512"
   ContainerPort: 80
-  HealthCheckPath: /
-  AppContainerName: app
 
-capabilities:
-  - CAPABILITY_NAMED_IAM
 
