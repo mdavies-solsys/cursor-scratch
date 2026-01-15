@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Simple Site - It Works</title>
+    <meta name="description" content="A minimal landing page to prove the website is working." />
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.45;
+      }
+      main {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 32px 20px;
+      }
+      .card {
+        max-width: 720px;
+        width: 100%;
+        border: 1px solid color-mix(in oklab, CanvasText 20%, transparent);
+        border-radius: 14px;
+        padding: 22px 20px;
+        background: color-mix(in oklab, Canvas 92%, transparent);
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 1.6rem;
+      }
+      p {
+        margin: 0 0 10px;
+        opacity: 0.9;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          "Courier New", monospace;
+      }
+      .meta {
+        margin-top: 14px;
+        font-size: 0.95rem;
+        opacity: 0.85;
+      }
+      h2 {
+        margin: 18px 0 8px;
+        font-size: 1.1rem;
+      }
+      ul {
+        margin: 0 0 10px;
+        padding-left: 18px;
+        opacity: 0.9;
+      }
+      li {
+        margin: 0 0 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="card">
+        <h1>It works.</h1>
+        <p>This is a very basic landing page to prove the website is being served correctly.</p>
+
+        <h2>How this site was built & deployed (100% mobile from an iPhone)</h2>
+        <p>
+          This site is intentionally simple, but the deployment is real: it’s containerized and shipped to AWS ECS
+          Fargate behind an ALB with TLS, with CI/CD wired up so changes can automatically roll out from Git.
+        </p>
+        <p>
+          Every step of the process was done on an iPhone. Cursor agent instructions, GitHub interactions, and AWS
+          operations were all executed mobile-first to prove the entire workflow can be done without a laptop.
+        </p>
+        <ul>
+          <li><strong>Start small:</strong> a single static <code>index.html</code> in <code>projects/simple-site/</code>.</li>
+          <li>
+            <strong>Containerize:</strong> an NGINX <code>Dockerfile</code> serves the static HTML on port 80.
+          </li>
+          <li>
+            <strong>Infrastructure:</strong> a CloudFormation template provisions VPC networking, an internet-facing ALB,
+            an ACM certificate validated via Route 53, and an ECS Fargate service pulling from ECR.
+          </li>
+          <li>
+            <strong>Automated delivery:</strong> a CodePipeline + CodeBuild flow (via an existing CodeStar/CodeConnections
+            connection) builds the image and deploys it to the running service when the repo updates.
+          </li>
+          <li>
+            <strong>Git sync:</strong> a <code>ci/deployment.yaml</code> is included to make CloudFormation GitSync
+            deployments straightforward.
+          </li>
+        </ul>
+        <h2>Mobile-only workflow highlights</h2>
+        <ul>
+          <li>
+            <strong>Cursor agents on iPhone:</strong> all prompt iterations, code generation, and review flowed through a
+            mobile session.
+          </li>
+          <li>
+            <strong>GitHub fully mobile:</strong> the initial repo was created on GitHub from the phone, with subsequent
+            commits, reviews, and merges also handled on mobile.
+          </li>
+          <li>
+            <strong>AWS fully mobile:</strong> parameter ARNs were gathered (Route 53 zone, ACM cert, CodeConnections),
+            the CloudFormation stack was deployed, and ECS services + CloudFormation events + pipeline runs were
+            monitored from the iPhone.
+          </li>
+        </ul>
+        <p>
+          The overall effort was a short set of iterations: specify the outcome, generate an initial version, review it,
+          remove unnecessary knobs, and then lock in the final domain + connection details.
+        </p>
+        <p>
+          A key part of making an agent effective is human product intuition. Matthew Davies guided the agent with clear
+          constraints, practical AWS context (Route 53 zone + connection ARN), and quick reviews that kept the solution
+          focused and deployable without overengineering.
+        </p>
+
+        <p class="meta">
+          File: <code>projects/simple-site/index.html</code>
+        </p>
+      </div>
+    </main>
+  </body>
+</html>
