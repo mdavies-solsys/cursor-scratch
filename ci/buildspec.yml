@@ -6,6 +6,13 @@ phases:
       - echo "Logging in to Amazon ECR..."
       - aws --version
       - docker --version
+      - echo "Logging in to Docker Hub..."
+      - DOCKERHUB_SECRET_ARN="${DOCKERHUB_SECRET_ARN:?DOCKERHUB_SECRET_ARN is required}"
+      - DOCKERHUB_SECRET_JSON="$(aws secretsmanager get-secret-value --secret-id "$DOCKERHUB_SECRET_ARN" --query SecretString --output text)"
+      - DOCKERHUB_USERNAME="$(python3 -c 'import json, os; print(json.loads(os.environ["DOCKERHUB_SECRET_JSON"])["username"])')"
+      - DOCKERHUB_PASSWORD="$(python3 -c 'import json, os; print(json.loads(os.environ["DOCKERHUB_SECRET_JSON"])["password"])')"
+      - printf '%s' "$DOCKERHUB_PASSWORD" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+      - unset DOCKERHUB_PASSWORD DOCKERHUB_SECRET_JSON
       - ECR_REGISTRY="$(echo "$ECR_REPO_URI" | cut -d/ -f1)"
       - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
       - IMAGE_TAG="$(echo "$CODEBUILD_RESOLVED_SOURCE_VERSION" | cut -c1-12)"

@@ -21,6 +21,7 @@ CloudFormation + CI/CD to deploy the simple static website (`projects/simple-sit
 - `CodeStarConnectionArn`: ARN of your existing CodeStar connection to GitHub
 - `GitHubOwner`: GitHub org/user
 - `GitHubRepo`: repo name
+- `DockerHubSecretArn`: ARN of Secrets Manager secret with Docker Hub `username` + `password`
 
 Optional parameters you may want to override:
 
@@ -49,6 +50,7 @@ aws cloudformation deploy \
     CodeStarConnectionArn=arn:aws:codeconnections:... \
     GitHubOwner=mdavies-solsys \
     GitHubRepo=cursor-scratch \
+    DockerHubSecretArn=arn:aws:secretsmanager:us-east-2:834184586696:secret:dockerhub-kst0iN \
     BranchName=main
 ```
 
