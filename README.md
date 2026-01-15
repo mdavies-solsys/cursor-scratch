@@ -1,5 +1,6 @@
 ## cursor-scratch
 
+
 This repo is a **low-stakes sandbox** for experimenting with Cursor agents, prompts, and small code spikes.
 
 ### How to use
