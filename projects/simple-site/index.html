@@ -45,6 +45,18 @@
         font-size: 0.95rem;
         opacity: 0.85;
       }
+      h2 {
+        margin: 18px 0 8px;
+        font-size: 1.1rem;
+      }
+      ul {
+        margin: 0 0 10px;
+        padding-left: 18px;
+        opacity: 0.9;
+      }
+      li {
+        margin: 0 0 6px;
+      }
     </style>
   </head>
   <body>
@@ -52,6 +64,40 @@
       <div class="card">
         <h1>It works.</h1>
         <p>This is a very basic landing page to prove the website is being served correctly.</p>
+
+        <h2>How this site was built & deployed (iPhone + Cursor agents)</h2>
+        <p>
+          This site is intentionally simple, but the deployment is real: it’s containerized and shipped to AWS ECS
+          Fargate behind an ALB with TLS, with CI/CD wired up so changes can automatically roll out from Git.
+        </p>
+        <ul>
+          <li><strong>Start small:</strong> a single static <code>index.html</code> in <code>projects/simple-site/</code>.</li>
+          <li>
+            <strong>Containerize:</strong> an NGINX <code>Dockerfile</code> serves the static HTML on port 80.
+          </li>
+          <li>
+            <strong>Infrastructure:</strong> a CloudFormation template provisions VPC networking, an internet-facing ALB,
+            an ACM certificate validated via Route 53, and an ECS Fargate service pulling from ECR.
+          </li>
+          <li>
+            <strong>Automated delivery:</strong> a CodePipeline + CodeBuild flow (via an existing CodeStar/CodeConnections
+            connection) builds the image and deploys it to the running service when the repo updates.
+          </li>
+          <li>
+            <strong>Git sync:</strong> a <code>ci/deployment.yaml</code> is included to make CloudFormation GitSync
+            deployments straightforward.
+          </li>
+        </ul>
+        <p>
+          The overall effort was a short set of iterations: specify the outcome, generate an initial version, review it,
+          remove unnecessary knobs, and then lock in the final domain + connection details.
+        </p>
+        <p>
+          A key part of making an agent effective is human product intuition. Matthew Davies guided the agent with clear
+          constraints, practical AWS context (Route 53 zone + connection ARN), and quick reviews that kept the solution
+          focused and deployable without overengineering.
+        </p>
+
         <p class="meta">
           File: <code>projects/simple-site/index.html</code>
         </p>
