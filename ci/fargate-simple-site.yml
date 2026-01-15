@@ -261,11 +261,14 @@ Resources:
       DomainName: !Ref RootDomainName
       SubjectAlternativeNames:
         - !Sub "www.${RootDomainName}"
+        - !Sub "api.${RootDomainName}"
       ValidationMethod: DNS
       DomainValidationOptions:
         - DomainName: !Ref RootDomainName
           HostedZoneId: !Ref HostedZoneId
         - DomainName: !Sub "www.${RootDomainName}"
+          HostedZoneId: !Ref HostedZoneId
+        - DomainName: !Sub "api.${RootDomainName}"
           HostedZoneId: !Ref HostedZoneId
 
   HttpsListener:
@@ -308,6 +311,11 @@ Resources:
           AliasTarget:
             DNSName: !GetAtt LoadBalancer.DNSName
             HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
+        - Name: !Sub "api.${RootDomainName}"
+          Type: A
+          AliasTarget:
+            DNSName: !GetAtt GuestbookApiDomain.RegionalDomainName
+            HostedZoneId: !GetAtt GuestbookApiDomain.RegionalHostedZoneId
 
   Cluster:
     Type: AWS::ECS::Cluster
@@ -437,6 +445,22 @@ Resources:
       ApiId: !Ref GuestbookApi
       StageName: "$default"
       AutoDeploy: true
+
+  GuestbookApiDomain:
+    Type: AWS::ApiGatewayV2::DomainName
+    Properties:
+      DomainName: !Sub "api.${RootDomainName}"
+      DomainNameConfigurations:
+        - CertificateArn: !Ref SiteCertificate
+          EndpointType: REGIONAL
+          SecurityPolicy: TLS_1_2
+
+  GuestbookApiMapping:
+    Type: AWS::ApiGatewayV2::ApiMapping
+    Properties:
+      ApiId: !Ref GuestbookApi
+      DomainName: !Ref GuestbookApiDomain
+      Stage: !Ref GuestbookApiStage
 
   GuestbookApiPermission:
     Type: AWS::Lambda::Permission
@@ -707,7 +731,10 @@ Outputs:
     Description: CodePipeline name.
     Value: !Ref Pipeline
   GuestbookApiUrl:
-    Description: Guestbook API base URL.
+    Description: Guestbook API base URL (custom domain).
+    Value: !Sub "https://api.${RootDomainName}"
+  GuestbookApiGatewayUrl:
+    Description: Guestbook API base URL (execute-api).
     Value: !Sub "https://${GuestbookApi}.execute-api.${AWS::Region}.amazonaws.com"
   GuestbookTableName:
     Description: Guestbook DynamoDB table name.

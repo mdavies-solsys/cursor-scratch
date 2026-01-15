@@ -22,7 +22,7 @@
     <meta name="twitter:description" content="A minimal homepage for Matt Davies." />
     <meta name="twitter:image" content="https://matthewsdavies.com/matt-davies-hero.jpeg" />
     <meta name="twitter:image:alt" content="Preview image of the Matt Davies homepage." />
-    <meta name="guestbook-api" content="" />
+    <meta name="guestbook-api" content="https://api.matthewsdavies.com" />
     <style>
       :root {
         color-scheme: dark;
@@ -395,6 +395,17 @@
         gap: 10px;
       }
 
+      .guestbook-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 999px;
+        border: 1px solid var(--stroke);
+        background: linear-gradient(120deg, var(--accent), var(--accent-2));
+        background-size: cover;
+        background-position: center;
+        flex: 0 0 auto;
+      }
+
       .guestbook-list li::before {
         display: none;
       }
@@ -737,6 +748,11 @@
 
           items.forEach((item) => {
             const row = document.createElement("li");
+            const avatar = document.createElement("span");
+            avatar.className = "guestbook-avatar";
+            avatar.style.backgroundImage = `url("https://unavatar.io/twitter/${encodeURIComponent(item.handle)}")`;
+            avatar.setAttribute("aria-hidden", "true");
+            row.appendChild(avatar);
             const link = document.createElement("a");
             link.className = "guestbook-handle";
             link.href = `https://x.com/${item.handle}`;
