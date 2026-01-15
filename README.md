@@ -1,14 +1,13 @@
-## cursor-scratch
+# matthewsdavies.com
 
+Personal homepage site for Matt Davies.
 
-This repo is a **low-stakes sandbox** for experimenting with Cursor agents, prompts, and small code spikes.
+## Structure
 
-### How to use
+- `src/`: static site source (HTML, assets, Dockerfile).
+- `ci/`: CloudFormation + CI/CD assets for AWS ECS Fargate deployment.
 
-- If you want to try something quickly, put it under `playground/`.
-- If you have a reusable result you might copy elsewhere, put it under `snippets/` (small, portable, documented).
-- If you’re just capturing thoughts, put it under `notes/`.
+## Local preview
 
-### For future Cursor agents
-
-Start by reading `AGENTS.md` — it explains the repo’s purpose, structure, and conventions to keep experiments organized.
+- Open `src/index.html` directly for a quick preview.
+- Build the container with `docker build -t simple-site -f src/Dockerfile src`.

@@ -1,6 +1,6 @@
 ## ci/
 
-CloudFormation + CI/CD to deploy the simple static website (`projects/simple-site/`) to **AWS ECS Fargate** behind an **Application Load Balancer**, with:
+CloudFormation + CI/CD to deploy the simple static website (`src/`) to **AWS ECS Fargate** behind an **Application Load Balancer**, with:
 
 - **ACM** certificate (DNS validation in Route53)
 - **Route53** A-record alias pointing at the ALB
@@ -12,7 +12,7 @@ CloudFormation + CI/CD to deploy the simple static website (`projects/simple-sit
 
 - `ci/fargate-simple-site.yml`: CloudFormation template
 - `ci/buildspec.yml`: CodeBuild buildspec used by the pipeline
-- `projects/simple-site/Dockerfile`: Container image for the static site
+- `src/Dockerfile`: Container image for the static site
 
 ### Required parameters
 
