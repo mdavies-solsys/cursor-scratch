@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Simple Site - Design 1</title>
+    <meta
+      name="description"
+      content="A liquid-glass inspired design with an anime.js opening animation."
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-1: #090b1a;
+        --bg-2: #151d39;
+        --bg-3: #132b3f;
+        --glass: rgba(255, 255, 255, 0.1);
+        --glass-strong: rgba(255, 255, 255, 0.18);
+        --stroke: rgba(255, 255, 255, 0.2);
+        --text: #eaf1ff;
+        --muted: rgba(234, 241, 255, 0.7);
+        --accent: #7dd3ff;
+        --accent-2: #cbb6ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "SF Pro Display", "SF Pro Text", system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+          sans-serif;
+        background: radial-gradient(circle at 15% 10%, rgba(125, 211, 255, 0.25), transparent 45%),
+          radial-gradient(circle at 80% 0%, rgba(203, 182, 255, 0.25), transparent 40%),
+          radial-gradient(circle at 20% 70%, rgba(122, 255, 210, 0.18), transparent 50%), var(--bg-1);
+        color: var(--text);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .ambient {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .orb {
+        position: absolute;
+        border-radius: 999px;
+        filter: blur(0.2px);
+        opacity: 0.6;
+        mix-blend-mode: screen;
+      }
+
+      .orb-1 {
+        width: 420px;
+        height: 420px;
+        top: -120px;
+        left: -60px;
+        background: radial-gradient(circle at 30% 30%, rgba(125, 211, 255, 0.8), rgba(125, 211, 255, 0));
+      }
+
+      .orb-2 {
+        width: 360px;
+        height: 360px;
+        top: 80px;
+        right: -120px;
+        background: radial-gradient(circle at 60% 40%, rgba(203, 182, 255, 0.85), rgba(203, 182, 255, 0));
+      }
+
+      .orb-3 {
+        width: 520px;
+        height: 520px;
+        bottom: -220px;
+        left: 25%;
+        background: radial-gradient(circle at 50% 40%, rgba(122, 255, 210, 0.6), rgba(122, 255, 210, 0));
+      }
+
+      .shell {
+        position: relative;
+        z-index: 1;
+      }
+
+      .site-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 24px 28px 10px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-size: 0.78rem;
+      }
+
+      .brand-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(120deg, var(--accent), var(--accent-2));
+        box-shadow: 0 0 18px rgba(125, 211, 255, 0.8);
+      }
+
+      .header-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .header-pill {
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        backdrop-filter: blur(12px);
+      }
+
+      .ghost-link {
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        transition: border 0.2s ease, background 0.2s ease;
+      }
+
+      .ghost-link:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.24);
+      }
+
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px 24px 80px;
+        display: grid;
+        gap: 24px;
+      }
+
+      .glass {
+        position: relative;
+        padding: 28px;
+        border-radius: 26px;
+        background: linear-gradient(140deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
+        border: 1px solid var(--stroke);
+        box-shadow: 0 35px 80px -40px rgba(8, 16, 40, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+        backdrop-filter: blur(26px) saturate(160%);
+        overflow: hidden;
+      }
+
+      .glass::before {
+        content: "";
+        position: absolute;
+        inset: 1px;
+        border-radius: 24px;
+        background: linear-gradient(120deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0));
+        opacity: 0.45;
+        pointer-events: none;
+      }
+
+      .hero {
+        display: grid;
+        gap: 16px;
+      }
+
+      .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        background: rgba(125, 211, 255, 0.18);
+        color: var(--accent);
+        border: 1px solid rgba(125, 211, 255, 0.4);
+        width: fit-content;
+      }
+
+      .hero-title {
+        margin: 0;
+        font-size: clamp(2rem, 4vw, 3.4rem);
+        letter-spacing: -0.02em;
+      }
+
+      .hero-lede {
+        margin: 0;
+        font-size: 1.05rem;
+        color: var(--muted);
+      }
+
+      h2 {
+        margin: 0 0 12px;
+        font-size: 1.1rem;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      p {
+        margin: 0 0 12px;
+        color: var(--muted);
+      }
+
+      ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 10px;
+      }
+
+      li {
+        display: grid;
+        grid-template-columns: 10px 1fr;
+        gap: 12px;
+        align-items: start;
+        color: var(--muted);
+      }
+
+      li::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        margin-top: 6px;
+        background: linear-gradient(120deg, var(--accent), var(--accent-2));
+        box-shadow: 0 0 12px rgba(125, 211, 255, 0.6);
+      }
+
+      strong {
+        color: var(--text);
+      }
+
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+          monospace;
+        font-size: 0.95em;
+      }
+
+      .content-grid {
+        display: grid;
+        gap: 24px;
+      }
+
+      .meta {
+        text-align: right;
+        font-size: 0.85rem;
+        color: rgba(234, 241, 255, 0.6);
+      }
+
+      @media (min-width: 900px) {
+        .hero {
+          grid-template-columns: 1.2fr 0.8fr;
+          align-items: center;
+        }
+        .content-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ambient">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
+
+    <div class="shell">
+      <header class="site-header">
+        <div class="brand">
+          <span class="brand-dot"></span>
+          <span>Simple Site</span>
+        </div>
+        <div class="header-actions">
+          <span class="header-pill">Design 1</span>
+          <a class="ghost-link" href="/">Original</a>
+        </div>
+      </header>
+
+      <main>
+        <section class="glass hero">
+          <div>
+            <span class="hero-badge">Liquid Glass Concept</span>
+            <h1 class="hero-title">It works.</h1>
+            <p class="hero-lede">
+              This is a very basic landing page to prove the website is being served correctly.
+            </p>
+          </div>
+          <div>
+            <h2>How this site was built &amp; deployed (100% mobile from an iPhone)</h2>
+            <p>
+              This site is intentionally simple, but the deployment is real: it’s containerized and shipped to AWS ECS
+              Fargate behind an ALB with TLS, with CI/CD wired up so changes can automatically roll out from Git.
+            </p>
+            <p>
+              Every step of the process was done on an iPhone. Cursor agent instructions, GitHub interactions, and AWS
+              operations were all executed mobile-first to prove the entire workflow can be done without a laptop.
+            </p>
+          </div>
+        </section>
+
+        <section class="glass">
+          <ul>
+            <li><strong>Start small:</strong> a single static <code>index.html</code> in <code>projects/simple-site/</code>.</li>
+            <li>
+              <strong>Containerize:</strong> an NGINX <code>Dockerfile</code> serves the static HTML on port 80.
+            </li>
+            <li>
+              <strong>Infrastructure:</strong> a CloudFormation template provisions VPC networking, an internet-facing ALB,
+              an ACM certificate validated via Route 53, and an ECS Fargate service pulling from ECR.
+            </li>
+            <li>
+              <strong>Automated delivery:</strong> a CodePipeline + CodeBuild flow (via an existing CodeStar/CodeConnections
+              connection) builds the image and deploys it to the running service when the repo updates.
+            </li>
+            <li>
+              <strong>Git sync:</strong> a <code>ci/deployment.yaml</code> is included to make CloudFormation GitSync
+              deployments straightforward.
+            </li>
+          </ul>
+        </section>
+
+        <div class="content-grid">
+          <section class="glass">
+            <h2>Mobile-only workflow highlights</h2>
+            <ul>
+              <li>
+                <strong>Cursor agents on iPhone:</strong> all prompt iterations, code generation, and review flowed through a
+                mobile session.
+              </li>
+              <li>
+                <strong>GitHub fully mobile:</strong> the initial repo was created on GitHub from the phone, with subsequent
+                commits, reviews, and merges also handled on mobile.
+              </li>
+              <li>
+                <strong>AWS fully mobile:</strong> parameter ARNs were gathered (Route 53 zone, ACM cert, CodeConnections),
+                the CloudFormation stack was deployed, and ECS services + CloudFormation events + pipeline runs were
+                monitored from the iPhone.
+              </li>
+            </ul>
+          </section>
+
+          <section class="glass">
+            <h2>Closing notes</h2>
+            <p>
+              The overall effort was a short set of iterations: specify the outcome, generate an initial version, review it,
+              remove unnecessary knobs, and then lock in the final domain + connection details.
+            </p>
+            <p>
+              A key part of making an agent effective is human product intuition. Matthew Davies guided the agent with clear
+              constraints, practical AWS context (Route 53 zone + connection ARN), and quick reviews that kept the solution
+              focused and deployable without overengineering.
+            </p>
+          </section>
+        </div>
+
+        <p class="meta">File: <code>projects/simple-site/design-1/index.html</code></p>
+      </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script>
+      window.addEventListener("DOMContentLoaded", () => {
+        if (!window.anime) {
+          return;
+        }
+
+        anime
+          .timeline({
+            easing: "easeOutExpo",
+            duration: 1100,
+          })
+          .add({
+            targets: ".hero-badge",
+            opacity: [0, 1],
+            translateY: [16, 0],
+          })
+          .add(
+            {
+              targets: ".hero-title",
+              opacity: [0, 1],
+              translateY: [24, 0],
+            },
+            "-=800"
+          )
+          .add(
+            {
+              targets: ".hero-lede",
+              opacity: [0, 1],
+              translateY: [18, 0],
+            },
+            "-=760"
+          )
+          .add(
+            {
+              targets: ".glass",
+              opacity: [0, 1],
+              translateY: [24, 0],
+              delay: anime.stagger(120),
+            },
+            "-=700"
+          )
+          .add(
+            {
+              targets: ".meta",
+              opacity: [0, 1],
+            },
+            "-=800"
+          );
+
+        anime({
+          targets: ".orb-1",
+          translateY: [0, 30],
+          translateX: [0, -20],
+          easing: "easeInOutSine",
+          duration: 6000,
+          direction: "alternate",
+          loop: true,
+        });
+
+        anime({
+          targets: ".orb-2",
+          translateY: [0, -40],
+          translateX: [0, 10],
+          easing: "easeInOutSine",
+          duration: 7200,
+          direction: "alternate",
+          loop: true,
+        });
+
+        anime({
+          targets: ".orb-3",
+          translateY: [0, 20],
+          translateX: [0, 30],
+          easing: "easeInOutSine",
+          duration: 8200,
+          direction: "alternate",
+          loop: true,
+        });
+      });
+    </script>
+  </body>
+</html>
