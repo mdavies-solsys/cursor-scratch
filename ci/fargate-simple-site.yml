@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  Deploy the projects/simple-site static website as an ECS Fargate service behind
+  Deploy the src static website as an ECS Fargate service behind
   an internet-facing ALB, with Route53 + ACM, and a CodePipeline (CodeStar connection)
   that builds + deploys on changes to the configured branch.
 

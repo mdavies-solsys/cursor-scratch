@@ -3,25 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Matt Davies</title>
-    <meta name="description" content="A minimal homepage for Matt Davies." />
-    <meta name="author" content="Matt Davies" />
-    <meta name="theme-color" content="#090b1a" />
-    <link rel="canonical" href="https://matthewsdavies.com/" />
-    <meta property="og:title" content="Matt Davies" />
-    <meta property="og:description" content="A minimal homepage for Matt Davies." />
-    <meta property="og:type" content="website" />
-    <meta property="og:locale" content="en_US" />
-    <meta property="og:site_name" content="Matt Davies" />
-    <meta property="og:url" content="https://matthewsdavies.com/" />
-    <meta property="og:image" content="https://matthewsdavies.com/IMG_2317.jpeg" />
-    <meta property="og:image:alt" content="Preview image of the Matt Davies homepage." />
-    <meta property="og:image:type" content="image/jpeg" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Matt Davies" />
-    <meta name="twitter:description" content="A minimal homepage for Matt Davies." />
-    <meta name="twitter:image" content="https://matthewsdavies.com/IMG_2317.jpeg" />
-    <meta name="twitter:image:alt" content="Preview image of the Matt Davies homepage." />
+    <title>Simple Site - Design 1</title>
+    <meta
+      name="description"
+      content="A liquid-glass inspired design with an anime.js opening animation."
+    />
     <style>
       :root {
         color-scheme: dark;
@@ -105,6 +91,7 @@
       .site-header {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         padding: 24px 28px 10px;
       }
 
@@ -124,6 +111,35 @@
         border-radius: 999px;
         background: linear-gradient(120deg, var(--accent), var(--accent-2));
         box-shadow: 0 0 18px rgba(125, 211, 255, 0.8);
+      }
+
+      .header-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .header-pill {
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        backdrop-filter: blur(12px);
+      }
+
+      .ghost-link {
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        transition: border 0.2s ease, background 0.2s ease;
+      }
+
+      .ghost-link:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.24);
       }
 
       main {
@@ -160,6 +176,21 @@
         gap: 16px;
       }
 
+      .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        background: rgba(125, 211, 255, 0.18);
+        color: var(--accent);
+        border: 1px solid rgba(125, 211, 255, 0.4);
+        width: fit-content;
+      }
+
       .hero-title {
         margin: 0;
         font-size: clamp(2rem, 4vw, 3.4rem);
@@ -190,24 +221,23 @@
         margin: 0;
         padding: 0;
         display: grid;
-        gap: 12px;
+        gap: 10px;
       }
 
       li {
-        position: relative;
-        padding-left: 20px;
+        display: grid;
+        grid-template-columns: 10px 1fr;
+        gap: 12px;
+        align-items: start;
         color: var(--muted);
-        line-height: 1.5;
       }
 
       li::before {
         content: "";
-        position: absolute;
-        left: 0;
-        top: 0.55em;
         width: 8px;
         height: 8px;
         border-radius: 999px;
+        margin-top: 6px;
         background: linear-gradient(120deg, var(--accent), var(--accent-2));
         box-shadow: 0 0 12px rgba(125, 211, 255, 0.6);
       }
@@ -255,13 +285,18 @@
       <header class="site-header">
         <div class="brand">
           <span class="brand-dot"></span>
-          <span>Matt Davies</span>
+          <span>Simple Site</span>
+        </div>
+        <div class="header-actions">
+          <span class="header-pill">Design 1</span>
+          <a class="ghost-link" href="/">Original</a>
         </div>
       </header>
 
       <main>
         <section class="glass hero">
           <div>
+            <span class="hero-badge">Liquid Glass Concept</span>
             <h1 class="hero-title">It works.</h1>
             <p class="hero-lede">
               This is a very basic landing page to prove the website is being served correctly.
@@ -282,7 +317,7 @@
 
         <section class="glass">
           <ul>
-            <li><strong>Start small:</strong> a single static <code>index.html</code> in <code>projects/simple-site/</code>.</li>
+            <li><strong>Start small:</strong> a single static <code>index.html</code> in <code>src/</code>.</li>
             <li>
               <strong>Containerize:</strong> an NGINX <code>Dockerfile</code> serves the static HTML on port 80.
             </li>
@@ -335,7 +370,7 @@
           </section>
         </div>
 
-        <p class="meta">File: <code>projects/simple-site/index.html</code></p>
+        <p class="meta">File: <code>src/design-1/index.html</code></p>
       </main>
     </div>
 
@@ -352,10 +387,18 @@
             duration: 1100,
           })
           .add({
-            targets: ".hero-title",
+            targets: ".hero-badge",
             opacity: [0, 1],
-            translateY: [24, 0],
+            translateY: [16, 0],
           })
+          .add(
+            {
+              targets: ".hero-title",
+              opacity: [0, 1],
+              translateY: [24, 0],
+            },
+            "-=800"
+          )
           .add(
             {
               targets: ".hero-lede",
@@ -414,4 +457,3 @@
     </script>
   </body>
 </html>
-
