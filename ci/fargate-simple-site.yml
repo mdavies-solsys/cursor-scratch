@@ -392,7 +392,171 @@ Resources:
           ALLOWED_ORIGINS: !Sub "https://${RootDomainName},https://www.${RootDomainName}"
       Code:
         ZipFile: |
-          const AWS=require("aws-sdk"),crypto=require("crypto"),db=new AWS.DynamoDB.DocumentClient(),T=process.env.TABLE_NAME,MAX=+process.env.RATE_LIMIT_MAX||5,WIN=+process.env.RATE_LIMIT_WINDOW_SECONDS||3600,ORIG=(process.env.ALLOWED_ORIGINS||"").split(",").map(s=>s.trim()).filter(Boolean),res=(c,b,o)=>{const h={"content-type":"application/json"};if(o&&ORIG.includes(o)){h["access-control-allow-origin"]=o;h["vary"]="Origin"}return{statusCode:c,headers:h,body:JSON.stringify(b)}};const origin=e=>e?.headers?.origin||e?.headers?.Origin||"",ip=e=>e?.requestContext?.http?.sourceIp||e?.requestContext?.identity?.sourceIp||((e?.headers?.["x-forwarded-for"]||"").split(",")[0].trim()),norm=h=>{h=String(h||"").trim().replace(/^@/,"").toLowerCase();return/^[a-z0-9_]{1,15}$/.test(h)?h:""},rate=async(hash,now)=>{if(!hash)return;const k={pk:`ip#${hash}`,sk:"limit"},r=await db.get({TableName:T,Key:k}).promise(),it=r.Item;if(it&&it.ttl>now&&it.count>=MAX){const err=new Error("rate");err.code=429;err.retry=it.ttl-now;throw err}const w=it&&it.ttl>now,ttl=w?it.ttl:now+WIN,count=w?(it.count||0)+1:1;await db.put({TableName:T,Item:{...k,count,ttl}}).promise()},list=async()=>{const r=await db.scan({TableName:T,FilterExpression:"begins_with(pk, :p)",ExpressionAttributeValues:{":p":"handle#"},ProjectionExpression:"pk, handle, submittedAt, updatedAt"}).promise();return(r.Items||[]).map(i=>({handle:i.handle||i.pk.replace("handle#",""),submittedAt:i.submittedAt,updatedAt:i.updatedAt})).sort((a,b)=>(b.submittedAt||"").localeCompare(a.submittedAt||""))};exports.handler=async e=>{const o=origin(e),m=e?.requestContext?.http?.method||e?.httpMethod||"GET";if(m==="OPTIONS")return res(200,{ok:true},o);if(m==="GET"){const items=await list();return res(200,{items,total:items.length},o)}if(m!=="POST")return res(405,{error:"Method not allowed"},o);let p={};if(e.body){const t=e.isBase64Encoded?Buffer.from(e.body,"base64").toString("utf8"):e.body;try{p=JSON.parse(t||"{}")}catch{return res(400,{error:"Invalid JSON"},o)}}if(p.company)return res(200,{ok:true},o);const h=norm(p.handle);if(!h)return res(400,{error:"Invalid handle"},o);const ipAddr=ip(e),hash=ipAddr?crypto.createHash("sha256").update(ipAddr).digest("hex"):"",now=Math.floor(Date.now()/1000);try{await rate(hash,now)}catch(err){if(err.code===429)return res(429,{error:"Rate limited",retryAfter:Math.max(err.retry,1)},o);throw err}const iso=new Date().toISOString(),key={pk:`handle#${h}`,sk:"profile"};let deduped=false;try{await db.put({TableName:T,Item:{...key,handle:h,submittedAt:iso,updatedAt:iso},ConditionExpression:"attribute_not_exists(pk)"}).promise()}catch(err){if(err.code!=="ConditionalCheckFailedException")throw err;deduped=true;await db.update({TableName:T,Key:key,UpdateExpression:"set updatedAt=:u",ExpressionAttributeValues:{":u":iso}}).promise()}return res(200,{ok:true,handle:h,deduped},o)};
+          const crypto = require("crypto");
+          const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+          const {
+            DynamoDBDocumentClient,
+            GetCommand,
+            PutCommand,
+            ScanCommand,
+            UpdateCommand,
+          } = require("@aws-sdk/lib-dynamodb");
+
+          const TABLE_NAME = process.env.TABLE_NAME;
+          const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 5);
+          const RATE_LIMIT_WINDOW_SECONDS = Number(process.env.RATE_LIMIT_WINDOW_SECONDS || 3600);
+          const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean);
+
+          const client = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
+            marshallOptions: { removeUndefinedValues: true },
+          });
+
+          const response = (statusCode, body, origin) => {
+            const headers = { "content-type": "application/json" };
+            if (origin && ALLOWED_ORIGINS.includes(origin)) {
+              headers["access-control-allow-origin"] = origin;
+              headers["vary"] = "Origin";
+            }
+            return { statusCode, headers, body: JSON.stringify(body) };
+          };
+
+          const getOrigin = (event) => event?.headers?.origin || event?.headers?.Origin || "";
+          const getIp = (event) => {
+            const forwarded = event?.headers?.["x-forwarded-for"] || event?.headers?.["X-Forwarded-For"];
+            if (forwarded) {
+              return forwarded.split(",")[0].trim();
+            }
+            return event?.requestContext?.http?.sourceIp || event?.requestContext?.identity?.sourceIp || "";
+          };
+
+          const normalizeHandle = (handle) => {
+            const normalized = String(handle || "").trim().replace(/^@/, "").toLowerCase();
+            return /^[a-z0-9_]{1,15}$/.test(normalized) ? normalized : "";
+          };
+
+          const rateLimit = async (hash, now) => {
+            if (!hash) return;
+            const key = { pk: `ip#${hash}`, sk: "limit" };
+            const existing = await client.send(new GetCommand({ TableName: TABLE_NAME, Key: key }));
+            const item = existing.Item;
+            if (item && item.ttl > now && item.count >= RATE_LIMIT_MAX) {
+              const err = new Error("rate");
+              err.code = 429;
+              err.retry = item.ttl - now;
+              throw err;
+            }
+            const withinWindow = item && item.ttl > now;
+            const ttl = withinWindow ? item.ttl : now + RATE_LIMIT_WINDOW_SECONDS;
+            const count = withinWindow ? (item.count || 0) + 1 : 1;
+            await client.send(new PutCommand({ TableName: TABLE_NAME, Item: { ...key, count, ttl } }));
+          };
+
+          const listEntries = async () => {
+            const result = await client.send(
+              new ScanCommand({
+                TableName: TABLE_NAME,
+                FilterExpression: "begins_with(#pk, :p)",
+                ExpressionAttributeNames: {
+                  "#pk": "pk",
+                  "#handle": "handle",
+                  "#submittedAt": "submittedAt",
+                  "#updatedAt": "updatedAt",
+                },
+                ExpressionAttributeValues: { ":p": "handle#" },
+                ProjectionExpression: "#pk, #handle, #submittedAt, #updatedAt",
+              })
+            );
+            const items = result.Items || [];
+            return items
+              .map((item) => ({
+                handle: item.handle || String(item.pk || "").replace("handle#", ""),
+                submittedAt: item.submittedAt,
+                updatedAt: item.updatedAt,
+              }))
+              .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""));
+          };
+
+          exports.handler = async (event) => {
+            const origin = getOrigin(event);
+            const method = event?.requestContext?.http?.method || event?.httpMethod || "GET";
+
+            try {
+              if (!TABLE_NAME) {
+                return response(500, { error: "Guestbook unavailable." }, origin);
+              }
+              if (method === "OPTIONS") return response(200, { ok: true }, origin);
+              if (method === "GET") {
+                const items = await listEntries();
+                return response(200, { items, total: items.length }, origin);
+              }
+              if (method !== "POST") return response(405, { error: "Method not allowed" }, origin);
+
+              let payload = {};
+              if (event?.body) {
+                const text = event.isBase64Encoded
+                  ? Buffer.from(event.body, "base64").toString("utf8")
+                  : event.body;
+                try {
+                  payload = JSON.parse(text || "{}");
+                } catch (error) {
+                  return response(400, { error: "Invalid JSON" }, origin);
+                }
+              }
+
+              if (payload.company) return response(200, { ok: true }, origin);
+
+              const handle = normalizeHandle(payload.handle);
+              if (!handle) return response(400, { error: "Invalid handle" }, origin);
+
+              const ipAddress = getIp(event);
+              const hash = ipAddress ? crypto.createHash("sha256").update(ipAddress).digest("hex") : "";
+              const now = Math.floor(Date.now() / 1000);
+
+              try {
+                await rateLimit(hash, now);
+              } catch (error) {
+                if (error.code === 429) {
+                  return response(429, { error: "Rate limited", retryAfter: Math.max(error.retry, 1) }, origin);
+                }
+                throw error;
+              }
+
+              const iso = new Date().toISOString();
+              const key = { pk: `handle#${handle}`, sk: "profile" };
+              let deduped = false;
+
+              try {
+                await client.send(
+                  new PutCommand({
+                    TableName: TABLE_NAME,
+                    Item: { ...key, handle, submittedAt: iso, updatedAt: iso },
+                    ConditionExpression: "attribute_not_exists(pk)",
+                  })
+                );
+              } catch (error) {
+                if (error.name !== "ConditionalCheckFailedException") {
+                  throw error;
+                }
+                deduped = true;
+                await client.send(
+                  new UpdateCommand({
+                    TableName: TABLE_NAME,
+                    Key: key,
+                    UpdateExpression: "set updatedAt = :u",
+                    ExpressionAttributeValues: { ":u": iso },
+                  })
+                );
+              }
+
+              return response(200, { ok: true, handle, deduped }, origin);
+            } catch (error) {
+              console.error("Guestbook error", error);
+              return response(500, { error: "Guestbook unavailable." }, origin);
+            }
+          };
 
   GuestbookLogGroup:
     Type: AWS::Logs::LogGroup
