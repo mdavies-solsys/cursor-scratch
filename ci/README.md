@@ -37,7 +37,6 @@ aws cloudformation deploy \
   --template-file ci/fargate-simple-site.yml \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
-    ProjectName=simple-site \
     DomainName=www.example.com \
     HostedZoneId=Z123456ABCDEFG \
     CodeStarConnectionArn=arn:aws:codestar-connections:... \

@@ -5,11 +5,6 @@ Description: >
   that builds + deploys on changes to the configured branch.
 
 Parameters:
-  ProjectName:
-    Type: String
-    Default: simple-site
-    Description: Prefix used for named resources.
-
   DomainName:
     Type: String
     Description: Fully-qualified domain name to serve (e.g. www.example.com).
@@ -53,11 +48,6 @@ Parameters:
     AllowedValues: ["512", "1024", "2048", "3072", "4096", "5120", "6144", "7168", "8192", "9216", "10240", "11264", "12288", "13312", "14336", "15360", "16384", "17408", "18432", "19456", "20480", "21504", "22528", "23552", "24576", "25600", "26624", "27648", "28672", "29696", "30720"]
     Description: Fargate task memory (MiB).
 
-  ContainerPort:
-    Type: Number
-    Default: 80
-    Description: Container port exposed by the task.
-
 Resources:
   ArtifactsBucket:
     Type: AWS::S3::Bucket
@@ -93,7 +83,7 @@ Resources:
   SiteEcrRepository:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: !Sub "${ProjectName}"
+      RepositoryName: !Sub "${AWS::StackName}"
       ImageScanningConfiguration:
         ScanOnPush: true
       EncryptionConfiguration:
@@ -124,14 +114,14 @@ Resources:
       EnableDnsSupport: true
       Tags:
         - Key: Name
-          Value: !Sub "${ProjectName}-vpc"
+          Value: !Sub "${AWS::StackName}-vpc"
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Name
-          Value: !Sub "${ProjectName}-igw"
+          Value: !Sub "${AWS::StackName}-igw"
 
   VpcGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -145,7 +135,7 @@ Resources:
       VpcId: !Ref Vpc
       Tags:
         - Key: Name
-          Value: !Sub "${ProjectName}-public-rt"
+          Value: !Sub "${AWS::StackName}-public-rt"
 
   PublicRoute:
     Type: AWS::EC2::Route
@@ -164,7 +154,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub "${ProjectName}-public-a"
+          Value: !Sub "${AWS::StackName}-public-a"
 
   PublicSubnetB:
     Type: AWS::EC2::Subnet
@@ -175,7 +165,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub "${ProjectName}-public-b"
+          Value: !Sub "${AWS::StackName}-public-b"
 
   PublicSubnetARouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -208,7 +198,7 @@ Resources:
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: !Sub "${ProjectName}-alb-sg"
+          Value: !Sub "${AWS::StackName}-alb-sg"
 
   ServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -217,15 +207,15 @@ Resources:
       VpcId: !Ref Vpc
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: !Ref ContainerPort
-          ToPort: !Ref ContainerPort
+          FromPort: 80
+          ToPort: 80
           SourceSecurityGroupId: !Ref AlbSecurityGroup
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: !Sub "${ProjectName}-svc-sg"
+          Value: !Sub "${AWS::StackName}-svc-sg"
 
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -241,7 +231,7 @@ Resources:
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Port: !Ref ContainerPort
+      Port: 80
       Protocol: HTTP
       TargetType: ip
       VpcId: !Ref Vpc
@@ -297,12 +287,12 @@ Resources:
   Cluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: !Sub "${ProjectName}-cluster"
+      ClusterName: !Sub "${AWS::StackName}-cluster"
 
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/ecs/${ProjectName}"
+      LogGroupName: !Sub "/ecs/${AWS::StackName}"
       RetentionInDays: 14
 
   TaskExecutionRole:
@@ -321,7 +311,7 @@ Resources:
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: !Sub "${ProjectName}"
+      Family: !Sub "${AWS::StackName}"
       RequiresCompatibilities: [FARGATE]
       NetworkMode: awsvpc
       Cpu: !Ref Cpu
@@ -332,7 +322,7 @@ Resources:
           Image: !Sub "${SiteEcrRepository.RepositoryUri}:latest"
           Essential: true
           PortMappings:
-            - ContainerPort: !Ref ContainerPort
+            - ContainerPort: 80
               Protocol: tcp
           LogConfiguration:
             LogDriver: awslogs
@@ -346,7 +336,7 @@ Resources:
     DependsOn:
       - HttpsListener
     Properties:
-      ServiceName: !Sub "${ProjectName}-service"
+      ServiceName: !Sub "${AWS::StackName}-service"
       Cluster: !Ref Cluster
       LaunchType: FARGATE
       DesiredCount: !Ref DesiredCount
@@ -364,7 +354,7 @@ Resources:
             - !Ref PublicSubnetB
       LoadBalancers:
         - ContainerName: app
-          ContainerPort: !Ref ContainerPort
+          ContainerPort: 80
           TargetGroupArn: !Ref TargetGroup
 
   CodeBuildRole:
@@ -378,7 +368,7 @@ Resources:
               Service: codebuild.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: !Sub "${ProjectName}-codebuild"
+        - PolicyName: !Sub "${AWS::StackName}-codebuild"
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -417,7 +407,7 @@ Resources:
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Sub "${ProjectName}-build"
+      Name: !Sub "${AWS::StackName}-build"
       ServiceRole: !GetAtt CodeBuildRole.Arn
       Artifacts:
         Type: CODEPIPELINE
@@ -445,7 +435,7 @@ Resources:
               Service: codepipeline.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: !Sub "${ProjectName}-codepipeline"
+        - PolicyName: !Sub "${AWS::StackName}-codepipeline"
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -489,7 +479,7 @@ Resources:
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      Name: !Sub "${ProjectName}-pipeline"
+      Name: !Sub "${AWS::StackName}-pipeline"
       RoleArn: !GetAtt CodePipelineRole.Arn
       ArtifactStore:
         Type: S3

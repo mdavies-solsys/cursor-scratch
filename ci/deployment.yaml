@@ -4,7 +4,6 @@ stack-name: simple-site-fargate
 # CloudFormation Git sync uses this file to know how to deploy the stack.
 # Fill in parameter values (or override in the CloudFormation console when enabling sync).
 parameters:
-  ProjectName: simple-site
   DomainName: REPLACE_ME_FQDN
   HostedZoneId: REPLACE_ME_HOSTED_ZONE_ID
   CodeStarConnectionArn: REPLACE_ME_CODESTAR_CONNECTION_ARN
@@ -14,6 +13,5 @@ parameters:
   DesiredCount: 1
   Cpu: "256"
   Memory: "512"
-  ContainerPort: 80
 
 
