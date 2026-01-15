@@ -27,6 +27,13 @@ Optional parameters you may want to override:
 - `BranchName` (default `main`)
 - `DesiredCount`, `Cpu`, `Memory`
 
+### First deploy bootstrap
+
+The ECS service references an image in ECR. On the first deploy that image doesn't exist yet,
+so the stack can hang waiting for tasks to start. Set `DesiredCount=0` on the initial deploy,
+run the pipeline once to publish the image (console or `aws codepipeline start-pipeline-execution --name <PipelineName>`),
+then update the stack to your desired count.
+
 ### Deploy (example)
 
 Use your preferred deployment mechanism (Console, CLI, or IaC orchestration). Example CLI:

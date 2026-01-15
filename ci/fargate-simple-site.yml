@@ -32,9 +32,9 @@ Parameters:
 
   DesiredCount:
     Type: Number
-    Default: 1
+    Default: 0
     MinValue: 0
-    Description: Number of Fargate tasks.
+    Description: Number of Fargate tasks. Set to 0 for first deploy until an image exists.
 
   Cpu:
     Type: String
