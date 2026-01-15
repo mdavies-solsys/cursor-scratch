@@ -65,10 +65,14 @@
         <h1>It works.</h1>
         <p>This is a very basic landing page to prove the website is being served correctly.</p>
 
-        <h2>How this site was built & deployed (iPhone + Cursor agents)</h2>
+        <h2>How this site was built & deployed (100% mobile from an iPhone)</h2>
         <p>
           This site is intentionally simple, but the deployment is real: it’s containerized and shipped to AWS ECS
           Fargate behind an ALB with TLS, with CI/CD wired up so changes can automatically roll out from Git.
+        </p>
+        <p>
+          Every step of the process was done on an iPhone. Cursor agent instructions, GitHub interactions, and AWS
+          operations were all executed mobile-first to prove the entire workflow can be done without a laptop.
         </p>
         <ul>
           <li><strong>Start small:</strong> a single static <code>index.html</code> in <code>projects/simple-site/</code>.</li>
@@ -86,6 +90,22 @@
           <li>
             <strong>Git sync:</strong> a <code>ci/deployment.yaml</code> is included to make CloudFormation GitSync
             deployments straightforward.
+          </li>
+        </ul>
+        <h2>Mobile-only workflow highlights</h2>
+        <ul>
+          <li>
+            <strong>Cursor agents on iPhone:</strong> all prompt iterations, code generation, and review flowed through a
+            mobile session.
+          </li>
+          <li>
+            <strong>GitHub fully mobile:</strong> the initial repo was created on GitHub from the phone, with subsequent
+            commits, reviews, and merges also handled on mobile.
+          </li>
+          <li>
+            <strong>AWS fully mobile:</strong> parameter ARNs were gathered (Route 53 zone, ACM cert, CodeConnections),
+            the CloudFormation stack was deployed, and ECS services + CloudFormation events + pipeline runs were
+            monitored from the iPhone.
           </li>
         </ul>
         <p>
