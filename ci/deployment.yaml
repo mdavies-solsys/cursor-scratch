@@ -10,7 +10,7 @@ parameters:
   GitHubOwner: mdavies-solsys
   GitHubRepo: cursor-scratch
   BranchName: main
-  DesiredCount: 0
+  DesiredCount: 1
   Cpu: "256"
   Memory: "512"
 
