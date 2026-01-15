@@ -329,7 +329,10 @@ Resources:
       ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
       ContainerDefinitions:
         - Name: app
-          Image: !Sub "${SiteEcrRepository.RepositoryUri}:latest"
+          # Bootstrap with a public image so the stack can create the ECS service
+          # before the CI pipeline has pushed the first image into the new ECR repo.
+          # The pipeline deploy action will later update the service to use the ECR image.
+          Image: public.ecr.aws/nginx/nginx:1.25-alpine
           Essential: true
           PortMappings:
             - ContainerPort: 80
@@ -492,6 +495,7 @@ Resources:
     Properties:
       Name: !Sub "${AWS::StackName}-pipeline"
       RoleArn: !GetAtt CodePipelineRole.Arn
+      RestartExecutionOnUpdate: true
       ArtifactStore:
         Type: S3
         Location: !Ref ArtifactsBucket
@@ -509,6 +513,7 @@ Resources:
                 FullRepositoryId: !Sub "${GitHubOwner}/${GitHubRepo}"
                 BranchName: !Ref BranchName
                 OutputArtifactFormat: CODE_ZIP
+                DetectChanges: true
               OutputArtifacts:
                 - Name: SourceOutput
               RunOrder: 1
