@@ -10,6 +10,7 @@ parameters:
   GitHubOwner: mdavies-solsys
   GitHubRepo: cursor-scratch
   BranchName: main
+  DockerHubSecretArn: arn:aws:secretsmanager:us-east-2:834184586696:secret:dockerhub-kst0iN
   DesiredCount: 1
   Cpu: "256"
   Memory: "512"
