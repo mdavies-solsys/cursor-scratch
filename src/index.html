@@ -22,6 +22,7 @@
     <meta name="twitter:description" content="A minimal homepage for Matt Davies." />
     <meta name="twitter:image" content="https://matthewsdavies.com/matt-davies-hero.jpeg" />
     <meta name="twitter:image:alt" content="Preview image of the Matt Davies homepage." />
+    <meta name="guestbook-api" content="" />
     <style>
       :root {
         color-scheme: dark;
@@ -283,6 +284,142 @@
         gap: 24px;
       }
 
+      .guestbook {
+        display: grid;
+        gap: 16px;
+      }
+
+      .guestbook-form {
+        display: grid;
+        gap: 12px;
+      }
+
+      .guestbook-field {
+        display: grid;
+        gap: 6px;
+      }
+
+      .guestbook-label {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .guestbook-input {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 1px solid var(--stroke);
+        background: rgba(9, 11, 26, 0.6);
+        color: var(--text);
+        font-size: 1rem;
+      }
+
+      .guestbook-input::placeholder {
+        color: rgba(234, 241, 255, 0.5);
+      }
+
+      .guestbook-input:focus {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      .guestbook-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .guestbook-button {
+        border: none;
+        border-radius: 999px;
+        padding: 12px 20px;
+        font-weight: 600;
+        color: #0c1020;
+        background: linear-gradient(120deg, var(--accent), var(--accent-2));
+        box-shadow: 0 12px 30px -20px rgba(125, 211, 255, 0.8);
+        cursor: pointer;
+        transition: transform 160ms ease, box-shadow 160ms ease;
+      }
+
+      .guestbook-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 16px 36px -20px rgba(125, 211, 255, 0.9);
+      }
+
+      .guestbook-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+        box-shadow: none;
+      }
+
+      .guestbook-status {
+        min-height: 20px;
+        font-size: 0.95rem;
+        color: var(--muted);
+      }
+
+      .guestbook-status[data-tone="error"] {
+        color: #ffb4b4;
+      }
+
+      .guestbook-status[data-tone="success"] {
+        color: #aafcd9;
+      }
+
+      .guestbook-list-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.9rem;
+        color: rgba(234, 241, 255, 0.75);
+      }
+
+      .guestbook-count {
+        font-variant-numeric: tabular-nums;
+      }
+
+      .guestbook-list {
+        margin-top: 10px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .guestbook-list li {
+        padding-left: 0;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .guestbook-list li::before {
+        display: none;
+      }
+
+      .guestbook-handle {
+        font-weight: 600;
+      }
+
+      .guestbook-time {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .guestbook-empty {
+        color: var(--muted);
+      }
+
+      .guestbook-honeypot {
+        position: absolute;
+        left: -9999px;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+      }
+
       .meta {
         text-align: right;
         font-size: 0.85rem;
@@ -431,6 +568,38 @@
           </section>
         </div>
 
+        <section class="glass guestbook" data-guestbook>
+          <h2>Guestbook</h2>
+          <p>Drop your X handle to join the guestbook. No OAuth, no login, just a handle.</p>
+          <form class="guestbook-form" data-guestbook-form>
+            <label class="guestbook-field">
+              <span class="guestbook-label">X handle</span>
+              <input
+                class="guestbook-input"
+                type="text"
+                name="handle"
+                placeholder="@yourhandle"
+                autocomplete="off"
+                spellcheck="false"
+                required
+              />
+            </label>
+            <input class="guestbook-honeypot" type="text" name="company" tabindex="-1" autocomplete="off" />
+            <div class="guestbook-actions">
+              <button class="guestbook-button" type="submit">Sign guestbook</button>
+              <span class="guestbook-time" data-guestbook-note>Handles must be 1-15 characters.</span>
+            </div>
+          </form>
+          <div class="guestbook-status" data-guestbook-status aria-live="polite"></div>
+          <div class="guestbook-list-wrap">
+            <div class="guestbook-list-header">
+              <span>Recent signers</span>
+              <span class="guestbook-count" data-guestbook-count>0</span>
+            </div>
+            <ul class="guestbook-list" data-guestbook-list></ul>
+          </div>
+        </section>
+
         <section class="glass about">
           <h2>About me</h2>
           <p>
@@ -459,74 +628,186 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
     <script>
       window.addEventListener("DOMContentLoaded", () => {
-        if (!window.anime) {
+        if (window.anime) {
+          anime
+            .timeline({
+              easing: "easeOutExpo",
+              duration: 1100,
+            })
+            .add({
+              targets: ".hero-title",
+              opacity: [0, 1],
+              translateY: [24, 0],
+            })
+            .add(
+              {
+                targets: ".hero-lede",
+                opacity: [0, 1],
+                translateY: [18, 0],
+              },
+              "-=760"
+            )
+            .add(
+              {
+                targets: ".glass",
+                opacity: [0, 1],
+                translateY: [24, 0],
+                delay: anime.stagger(120),
+              },
+              "-=700"
+            )
+            .add(
+              {
+                targets: ".meta",
+                opacity: [0, 1],
+              },
+              "-=800"
+            );
+
+          anime({
+            targets: ".orb-1",
+            translateY: [0, 30],
+            translateX: [0, -20],
+            easing: "easeInOutSine",
+            duration: 6000,
+            direction: "alternate",
+            loop: true,
+          });
+
+          anime({
+            targets: ".orb-2",
+            translateY: [0, -40],
+            translateX: [0, 10],
+            easing: "easeInOutSine",
+            duration: 7200,
+            direction: "alternate",
+            loop: true,
+          });
+
+          anime({
+            targets: ".orb-3",
+            translateY: [0, 20],
+            translateX: [0, 30],
+            easing: "easeInOutSine",
+            duration: 8200,
+            direction: "alternate",
+            loop: true,
+          });
+        }
+
+        const guestbookSection = document.querySelector("[data-guestbook]");
+        if (!guestbookSection) {
           return;
         }
 
-        anime
-          .timeline({
-            easing: "easeOutExpo",
-            duration: 1100,
-          })
-          .add({
-            targets: ".hero-title",
-            opacity: [0, 1],
-            translateY: [24, 0],
-          })
-          .add(
-            {
-              targets: ".hero-lede",
-              opacity: [0, 1],
-              translateY: [18, 0],
-            },
-            "-=760"
-          )
-          .add(
-            {
-              targets: ".glass",
-              opacity: [0, 1],
-              translateY: [24, 0],
-              delay: anime.stagger(120),
-            },
-            "-=700"
-          )
-          .add(
-            {
-              targets: ".meta",
-              opacity: [0, 1],
-            },
-            "-=800"
-          );
+        const queryApi = new URLSearchParams(window.location.search).get("guestbookApi");
+        const metaApi = document.querySelector('meta[name="guestbook-api"]')?.content;
+        const dataApi = guestbookSection.dataset.guestbookApi;
+        const apiBase = (queryApi || dataApi || metaApi || "").trim().replace(/\/$/, "");
+        const form = guestbookSection.querySelector("[data-guestbook-form]");
+        const status = guestbookSection.querySelector("[data-guestbook-status]");
+        const list = guestbookSection.querySelector("[data-guestbook-list]");
+        const count = guestbookSection.querySelector("[data-guestbook-count]");
+        const note = guestbookSection.querySelector("[data-guestbook-note]");
+        const submitButton = form?.querySelector("button[type='submit']");
 
-        anime({
-          targets: ".orb-1",
-          translateY: [0, 30],
-          translateX: [0, -20],
-          easing: "easeInOutSine",
-          duration: 6000,
-          direction: "alternate",
-          loop: true,
-        });
+        const setStatus = (message, tone) => {
+          if (!status) return;
+          status.textContent = message || "";
+          status.dataset.tone = tone || "";
+        };
 
-        anime({
-          targets: ".orb-2",
-          translateY: [0, -40],
-          translateX: [0, 10],
-          easing: "easeInOutSine",
-          duration: 7200,
-          direction: "alternate",
-          loop: true,
-        });
+        const formatDate = (value) => {
+          if (!value) return "";
+          const date = new Date(value);
+          if (Number.isNaN(date.getTime())) return "";
+          return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+        };
 
-        anime({
-          targets: ".orb-3",
-          translateY: [0, 20],
-          translateX: [0, 30],
-          easing: "easeInOutSine",
-          duration: 8200,
-          direction: "alternate",
-          loop: true,
-        });
+        const renderList = (items) => {
+          if (!list) return;
+          list.innerHTML = "";
+          if (!items.length) {
+            const emptyItem = document.createElement("li");
+            emptyItem.className = "guestbook-empty";
+            emptyItem.textContent = "Be the first to sign.";
+            list.appendChild(emptyItem);
+            return;
+          }
+
+          items.forEach((item) => {
+            const row = document.createElement("li");
+            const link = document.createElement("a");
+            link.className = "guestbook-handle";
+            link.href = `https://x.com/${item.handle}`;
+            link.target = "_blank";
+            link.rel = "noreferrer";
+            link.textContent = `@${item.handle}`;
+            row.appendChild(link);
+            const time = document.createElement("span");
+            time.className = "guestbook-time";
+            time.textContent = formatDate(item.submittedAt);
+            row.appendChild(time);
+            list.appendChild(row);
+          });
+        };
+
+        const loadGuestbook = async () => {
+          if (!apiBase) {
+            setStatus("Guestbook API is not configured yet.", "error");
+            if (submitButton) submitButton.disabled = true;
+            if (note) note.textContent = "Ask Matt for the guestbook API link.";
+            renderList([]);
+            if (count) count.textContent = "0";
+            return;
+          }
+
+          try {
+            const response = await fetch(`${apiBase}/guestbook`, { cache: "no-store" });
+            if (!response.ok) {
+              throw new Error("Failed to load guestbook.");
+            }
+            const data = await response.json();
+            const items = Array.isArray(data.items) ? data.items : [];
+            renderList(items);
+            if (count) count.textContent = String(data.total || items.length || 0);
+          } catch (err) {
+            setStatus("Guestbook unavailable right now.", "error");
+          }
+        };
+
+        if (form) {
+          form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            if (!apiBase) return;
+            const formData = new FormData(form);
+            const handle = String(formData.get("handle") || "").trim();
+            const company = String(formData.get("company") || "").trim();
+            setStatus("Submitting...", "");
+            if (submitButton) submitButton.disabled = true;
+            try {
+              const response = await fetch(`${apiBase}/guestbook`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ handle, company }),
+              });
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok) {
+                throw new Error(data.error || "Unable to submit.");
+              }
+              setStatus(data.deduped ? "You are already on the list." : "Added to the guestbook.", "success");
+              form.reset();
+              await loadGuestbook();
+            } catch (err) {
+              const message = err?.message || "Unable to submit right now.";
+              setStatus(message, "error");
+            } finally {
+              if (submitButton) submitButton.disabled = false;
+            }
+          });
+        }
+
+        loadGuestbook();
       });
     </script>
   </body>

@@ -14,5 +14,7 @@ parameters:
   DesiredCount: 1
   Cpu: "256"
   Memory: "512"
+  GuestbookRateLimitMax: 5
+  GuestbookRateLimitWindowSeconds: 3600
 
 

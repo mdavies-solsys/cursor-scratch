@@ -14,6 +14,11 @@ CloudFormation + CI/CD to deploy the simple static website (`src/`) to **AWS ECS
 - `ci/buildspec.yml`: CodeBuild buildspec used by the pipeline
 - `src/Dockerfile`: Container image for the static site
 
+### Guestbook API (optional)
+
+The CloudFormation template also provisions a small DynamoDB-backed guestbook API (Lambda + HTTP API).
+After deploy, grab the `GuestbookApiUrl` output and set the `guestbook-api` meta tag in `src/index.html`.
+
 ### Required parameters
 
 - `HostedZoneId`: Route53 hosted zone id that contains your record
@@ -27,6 +32,8 @@ Optional parameters you may want to override:
 
 - `BranchName` (default `main`)
 - `DesiredCount`, `Cpu`, `Memory`
+- `GuestbookRateLimitMax` (default `5`)
+- `GuestbookRateLimitWindowSeconds` (default `3600`)
 
 ### First deploy bootstrap
 
