@@ -109,6 +109,21 @@
         padding: 24px 28px 10px;
       }
 
+      .profile-photo {
+        display: flex;
+        justify-content: center;
+        padding: 4px 24px 0;
+      }
+
+      .profile-photo__image {
+        width: 120px;
+        height: 120px;
+        border-radius: 999px;
+        border: 1px solid var(--stroke);
+        object-fit: cover;
+        box-shadow: 0 22px 44px -30px rgba(8, 16, 40, 0.9);
+      }
+
       .brand {
         display: inline-flex;
         align-items: center;
@@ -302,6 +317,18 @@
           </svg>
         </a>
       </header>
+
+      <div class="profile-photo">
+        <img
+          class="profile-photo__image"
+          src="https://0.gravatar.com/avatar/0bda7c9e330d80383200b194d88c6c48?s=240"
+          alt="Portrait of Matt Davies"
+          width="120"
+          height="120"
+          loading="eager"
+          decoding="async"
+        />
+      </div>
 
       <main>
         <section class="glass hero">
