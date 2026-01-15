@@ -714,7 +714,13 @@
         const queryApi = new URLSearchParams(window.location.search).get("guestbookApi");
         const metaApi = document.querySelector('meta[name="guestbook-api"]')?.content;
         const dataApi = guestbookSection.dataset.guestbookApi;
-        const apiBase = (queryApi || dataApi || metaApi || "").trim().replace(/\/$/, "");
+        const rawApi = (queryApi || dataApi || metaApi || "").trim();
+        const apiBase = rawApi.replace(/\/+$/, "");
+        const guestbookEndpoint = apiBase
+          ? apiBase.endsWith("/guestbook")
+            ? apiBase
+            : `${apiBase}/guestbook`
+          : "";
         const form = guestbookSection.querySelector("[data-guestbook-form]");
         const status = guestbookSection.querySelector("[data-guestbook-status]");
         const list = guestbookSection.querySelector("[data-guestbook-list]");
@@ -769,7 +775,7 @@
         };
 
         const loadGuestbook = async () => {
-          if (!apiBase) {
+          if (!guestbookEndpoint) {
             setStatus("Guestbook API is not configured yet.", "error");
             if (submitButton) submitButton.disabled = true;
             if (note) note.textContent = "Ask Matt for the guestbook API link.";
@@ -779,7 +785,7 @@
           }
 
           try {
-            const response = await fetch(`${apiBase}/guestbook`, { cache: "no-store" });
+            const response = await fetch(guestbookEndpoint, { cache: "no-store" });
             if (!response.ok) {
               throw new Error("Failed to load guestbook.");
             }
@@ -795,14 +801,14 @@
         if (form) {
           form.addEventListener("submit", async (event) => {
             event.preventDefault();
-            if (!apiBase) return;
+            if (!guestbookEndpoint) return;
             const formData = new FormData(form);
             const handle = String(formData.get("handle") || "").trim();
             const company = String(formData.get("company") || "").trim();
             setStatus("Submitting...", "");
             if (submitButton) submitButton.disabled = true;
             try {
-              const response = await fetch(`${apiBase}/guestbook`, {
+              const response = await fetch(guestbookEndpoint, {
                 method: "POST",
                 headers: { "content-type": "application/json" },
                 body: JSON.stringify({ handle, company }),
