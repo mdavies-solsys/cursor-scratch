@@ -30,6 +30,10 @@ Parameters:
     Default: main
     Description: Branch to build/deploy from.
 
+  DockerHubSecretArn:
+    Type: String
+    Description: ARN of the Secrets Manager secret containing Docker Hub username/password.
+
   DesiredCount:
     Type: Number
     Default: 0
@@ -413,6 +417,10 @@ Resources:
                   - ecr:BatchGetImage
                   - ecr:GetDownloadUrlForLayer
                 Resource: !GetAtt SiteEcrRepository.Arn
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref DockerHubSecretArn
 
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
@@ -432,6 +440,8 @@ Resources:
         EnvironmentVariables:
           - Name: ECR_REPO_URI
             Value: !GetAtt SiteEcrRepository.RepositoryUri
+          - Name: DOCKERHUB_SECRET_ARN
+            Value: !Ref DockerHubSecretArn
       TimeoutInMinutes: 30
 
   CodePipelineRole:
