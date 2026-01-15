@@ -17,7 +17,7 @@ CloudFormation + CI/CD to deploy the simple static website (`projects/simple-sit
 ### Required parameters
 
 - `HostedZoneId`: Route53 hosted zone id that contains your record
-- `DomainName`: full domain name (e.g. `www.example.com`)
+- `RootDomainName`: root/apex domain name (e.g. `example.com`). The stack also serves `www.<root>`.
 - `CodeStarConnectionArn`: ARN of your existing CodeStar connection to GitHub
 - `GitHubOwner`: GitHub org/user
 - `GitHubRepo`: repo name
@@ -37,9 +37,9 @@ aws cloudformation deploy \
   --template-file ci/fargate-simple-site.yml \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
-    DomainName=www.example.com \
+    RootDomainName=example.com \
     HostedZoneId=Z123456ABCDEFG \
-    CodeStarConnectionArn=arn:aws:codestar-connections:... \
+    CodeStarConnectionArn=arn:aws:codeconnections:... \
     GitHubOwner=mdavies-solsys \
     GitHubRepo=cursor-scratch \
     BranchName=main

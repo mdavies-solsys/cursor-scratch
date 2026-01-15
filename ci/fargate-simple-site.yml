@@ -5,17 +5,17 @@ Description: >
   that builds + deploys on changes to the configured branch.
 
 Parameters:
-  DomainName:
+  RootDomainName:
     Type: String
-    Description: Fully-qualified domain name to serve (e.g. www.example.com).
+    Description: Root (apex) domain name to serve (e.g. example.com). The template also serves www.<root>.
 
   HostedZoneId:
     Type: String
-    Description: Route53 Hosted Zone ID that contains DomainName.
+    Description: Route53 Hosted Zone ID that contains the root domain.
 
   CodeStarConnectionArn:
     Type: String
-    Description: ARN of an existing CodeStar connection to GitHub.
+    Description: ARN of an existing CodeConnections/CodeStar connection to GitHub.
 
   GitHubOwner:
     Type: String
@@ -243,10 +243,14 @@ Resources:
   SiteCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: !Ref DomainName
+      DomainName: !Ref RootDomainName
+      SubjectAlternativeNames:
+        - !Sub "www.${RootDomainName}"
       ValidationMethod: DNS
       DomainValidationOptions:
-        - DomainName: !Ref DomainName
+        - DomainName: !Ref RootDomainName
+          HostedZoneId: !Ref HostedZoneId
+        - DomainName: !Sub "www.${RootDomainName}"
           HostedZoneId: !Ref HostedZoneId
 
   HttpsListener:
@@ -274,15 +278,21 @@ Resources:
             Port: "443"
             StatusCode: HTTP_301
 
-  DnsRecord:
-    Type: AWS::Route53::RecordSet
+  DnsRecords:
+    Type: AWS::Route53::RecordSetGroup
     Properties:
       HostedZoneId: !Ref HostedZoneId
-      Name: !Ref DomainName
-      Type: A
-      AliasTarget:
-        DNSName: !GetAtt LoadBalancer.DNSName
-        HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
+      RecordSets:
+        - Name: !Ref RootDomainName
+          Type: A
+          AliasTarget:
+            DNSName: !GetAtt LoadBalancer.DNSName
+            HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
+        - Name: !Sub "www.${RootDomainName}"
+          Type: A
+          AliasTarget:
+            DNSName: !GetAtt LoadBalancer.DNSName
+            HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
 
   Cluster:
     Type: AWS::ECS::Cluster
@@ -450,6 +460,7 @@ Resources:
                   - !Sub "${ArtifactsBucket.Arn}/*"
               - Effect: Allow
                 Action:
+                  - codeconnections:UseConnection
                   - codestar-connections:UseConnection
                 Resource: !Ref CodeStarConnectionArn
               - Effect: Allow
@@ -534,8 +545,11 @@ Resources:
 
 Outputs:
   WebsiteUrl:
-    Description: Website URL (HTTPS).
-    Value: !Sub "https://${DomainName}"
+    Description: Website URL (HTTPS, apex/root).
+    Value: !Sub "https://${RootDomainName}"
+  WebsiteWwwUrl:
+    Description: Website URL (HTTPS, www).
+    Value: !Sub "https://www.${RootDomainName}"
   LoadBalancerDnsName:
     Description: ALB DNS name (useful for debugging).
     Value: !GetAtt LoadBalancer.DNSName

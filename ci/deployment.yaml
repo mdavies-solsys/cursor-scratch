@@ -4,9 +4,9 @@ stack-name: simple-site-fargate
 # CloudFormation Git sync uses this file to know how to deploy the stack.
 # Fill in parameter values (or override in the CloudFormation console when enabling sync).
 parameters:
-  DomainName: REPLACE_ME_FQDN
-  HostedZoneId: REPLACE_ME_HOSTED_ZONE_ID
-  CodeStarConnectionArn: REPLACE_ME_CODESTAR_CONNECTION_ARN
+  RootDomainName: matthewsdavies.com
+  HostedZoneId: Z00516472OLUP2B7B5NN9
+  CodeStarConnectionArn: arn:aws:codeconnections:us-east-2:834184586696:connection/2e406077-0f3e-47dd-93e5-e435dd1451d5
   GitHubOwner: mdavies-solsys
   GitHubRepo: cursor-scratch
   BranchName: main
