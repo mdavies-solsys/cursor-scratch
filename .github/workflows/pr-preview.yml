@@ -1,0 +1,144 @@
+name: PR Preview
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: pr-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: us-east-2
+  ROOT_DOMAIN_NAME: matthewsdavies.com
+  HOSTED_ZONE_ID: Z00516472OLUP2B7B5NN9
+  CODESTAR_CONNECTION_ARN: arn:aws:codeconnections:us-east-2:834184586696:connection/2e406077-0f3e-47dd-93e5-e435dd1451d5
+  GITHUB_OWNER: mdavies-solsys
+  GITHUB_REPO: cursor-scratch
+  DOCKERHUB_SECRET_ARN: arn:aws:secretsmanager:us-east-2:834184586696:secret:dockerhub-kst0iN
+  STACK_NAME_PREFIX: simple-site-pr
+  ENABLE_PIPELINE: "false"
+  DESIRED_COUNT: "1"
+
+jobs:
+  deploy_preview:
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_PREVIEW_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set preview environment
+        run: |
+          set -euo pipefail
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          echo "STACK_NAME=${STACK_NAME_PREFIX}-${PR_NUMBER}" >> "$GITHUB_ENV"
+          echo "PREVIEW_DOMAIN=pr-${PR_NUMBER}.${ROOT_DOMAIN_NAME}" >> "$GITHUB_ENV"
+          IMAGE_TAG="$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-12)"
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
+
+      - name: Check stack existence
+        id: stack
+        run: |
+          set -euo pipefail
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy preview stack
+        run: |
+          set -euo pipefail
+          DESIRED_COUNT_OVERRIDE="$DESIRED_COUNT"
+          if [ "${{ steps.stack.outputs.exists }}" != "true" ]; then
+            DESIRED_COUNT_OVERRIDE="0"
+          fi
+          aws cloudformation deploy \
+            --stack-name "$STACK_NAME" \
+            --template-file ci/fargate-simple-site.yml \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              RootDomainName="$PREVIEW_DOMAIN" \
+              HostedZoneId="$HOSTED_ZONE_ID" \
+              CodeStarConnectionArn="$CODESTAR_CONNECTION_ARN" \
+              GitHubOwner="$GITHUB_OWNER" \
+              GitHubRepo="$GITHUB_REPO" \
+              DockerHubSecretArn="$DOCKERHUB_SECRET_ARN" \
+              DesiredCount="$DESIRED_COUNT_OVERRIDE" \
+              EnablePipeline="$ENABLE_PIPELINE" \
+            --no-fail-on-empty-changeset
+
+      - name: Resolve ECR repository
+        run: |
+          set -euo pipefail
+          ECR_REPO_URI="$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='EcrRepositoryUri'].OutputValue" \
+            --output text)"
+          echo "ECR_REPO_URI=${ECR_REPO_URI}" >> "$GITHUB_ENV"
+
+      - name: Build and push image
+        run: |
+          set -euo pipefail
+          echo "Logging in to Docker Hub..."
+          DOCKERHUB_SECRET_JSON="$(aws secretsmanager get-secret-value \
+            --secret-id "$DOCKERHUB_SECRET_ARN" \
+            --query SecretString \
+            --output text)"
+          DOCKERHUB_USERNAME="$(python3 -c 'import json, os; print(json.loads(os.environ["DOCKERHUB_SECRET_JSON"])["username"])')"
+          DOCKERHUB_PASSWORD="$(python3 -c 'import json, os; print(json.loads(os.environ["DOCKERHUB_SECRET_JSON"])["password"])')"
+          printf '%s' "$DOCKERHUB_PASSWORD" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+          unset DOCKERHUB_PASSWORD DOCKERHUB_SECRET_JSON
+
+          echo "Logging in to Amazon ECR..."
+          ECR_REGISTRY="$(echo "$ECR_REPO_URI" | cut -d/ -f1)"
+          aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+          echo "Building Docker image..."
+          docker build -t "$ECR_REPO_URI:$IMAGE_TAG" -t "$ECR_REPO_URI:latest" -f src/Dockerfile src
+
+          echo "Pushing Docker images..."
+          docker push "$ECR_REPO_URI:$IMAGE_TAG"
+          docker push "$ECR_REPO_URI:latest"
+
+      - name: Refresh ECS service
+        run: |
+          set -euo pipefail
+          aws ecs update-service \
+            --cluster "${STACK_NAME}-cluster" \
+            --service "${STACK_NAME}-service" \
+            --desired-count "$DESIRED_COUNT" \
+            --force-new-deployment
+
+  destroy_preview:
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_PREVIEW_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Delete preview stack
+        run: |
+          set -euo pipefail
+          STACK_NAME="${STACK_NAME_PREFIX}-${{ github.event.pull_request.number }}"
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" > /dev/null 2>&1; then
+            aws cloudformation delete-stack --stack-name "$STACK_NAME"
+          else
+            echo "Stack $STACK_NAME not found; nothing to delete."
+          fi

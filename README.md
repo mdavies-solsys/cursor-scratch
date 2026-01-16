@@ -11,3 +11,8 @@ Personal homepage site for Matt Davies.
 
 - Open `src/index.html` directly for a quick preview.
 - Build the container with `docker build -t simple-site -f src/Dockerfile src`.
+
+## PR previews
+
+Pull requests deploy preview sites at `pr-<id>.matthewsdavies.com` while the PR is open. Details and setup
+are documented in `ci/README.md`.

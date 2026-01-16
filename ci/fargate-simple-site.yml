@@ -30,6 +30,12 @@ Parameters:
     Default: main
     Description: Branch to build/deploy from.
 
+  EnablePipeline:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Whether to provision CodePipeline/CodeBuild resources.
+
   DockerHubSecretArn:
     Type: String
     Description: ARN of the Secrets Manager secret containing Docker Hub username/password.
@@ -63,9 +69,13 @@ Parameters:
     MinValue: 60
     Description: IP rate-limit window in seconds.
 
+Conditions:
+  UsePipeline: !Equals [!Ref EnablePipeline, "true"]
+
 Resources:
   ArtifactsBucket:
     Type: AWS::S3::Bucket
+    Condition: UsePipeline
     Properties:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
@@ -79,6 +89,7 @@ Resources:
 
   ArtifactsBucketPolicy:
     Type: AWS::S3::BucketPolicy
+    Condition: UsePipeline
     Properties:
       Bucket: !Ref ArtifactsBucket
       PolicyDocument:
@@ -99,6 +110,7 @@ Resources:
     Type: AWS::ECR::Repository
     Properties:
       RepositoryName: !Sub "${AWS::StackName}"
+      EmptyOnDelete: true
       ImageScanningConfiguration:
         ScanOnPush: true
       EncryptionConfiguration:
@@ -698,6 +710,7 @@ Resources:
 
   CodeBuildRole:
     Type: AWS::IAM::Role
+    Condition: UsePipeline
     Properties:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -749,6 +762,7 @@ Resources:
 
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
+    Condition: UsePipeline
     Properties:
       Name: !Sub "${AWS::StackName}-build"
       ServiceRole: !GetAtt CodeBuildRole.Arn
@@ -771,6 +785,7 @@ Resources:
 
   CodePipelineRole:
     Type: AWS::IAM::Role
+    Condition: UsePipeline
     Properties:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -824,6 +839,7 @@ Resources:
 
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
+    Condition: UsePipeline
     Properties:
       Name: !Sub "${AWS::StackName}-pipeline"
       RoleArn: !GetAtt CodePipelineRole.Arn
@@ -894,6 +910,7 @@ Outputs:
   PipelineName:
     Description: CodePipeline name.
     Value: !Ref Pipeline
+    Condition: UsePipeline
   GuestbookApiUrl:
     Description: Guestbook API base URL (custom domain).
     Value: !Sub "https://api.${RootDomainName}"

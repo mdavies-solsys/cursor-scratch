@@ -34,6 +34,7 @@ After deploy, ensure the `guestbook-api` meta tag in `src/index.html` points at 
 Optional parameters you may want to override:
 
 - `BranchName` (default `main`)
+- `EnablePipeline` (default `true`)
 - `DesiredCount`, `Cpu`, `Memory`
 - `GuestbookRateLimitMax` (default `5`)
 - `GuestbookRateLimitWindowSeconds` (default `3600`)
@@ -66,3 +67,22 @@ aws cloudformation deploy \
 
 After creation completes, visit the `WebsiteUrl` output.
 
+### PR preview environments
+
+Pull request previews are deployed by GitHub Actions to stack names like `simple-site-pr-16` and
+domains like `pr-16.<RootDomainName>`. The workflow keeps previews around while the PR is open,
+deploys new commits automatically, and deletes the stack on close.
+
+Required setup (one-time):
+
+- Create an IAM role for GitHub OIDC with permissions to create/update/delete the CloudFormation stack
+  (ECS, ECR, ALB, ACM, Route53, CloudWatch Logs, IAM).
+- Allow the role to read the Docker Hub secret in Secrets Manager.
+- Add the role ARN as a GitHub Actions secret named `AWS_PREVIEW_ROLE_ARN`.
+
+Notes:
+
+- The workflow skips PRs from forks (no secrets/credentials).
+- Preview stacks set `EnablePipeline=false` so CodePipeline resources are not created.
+- Preview domains are `pr-<number>.<RootDomainName>`; the hosted zone must be the root domain zone.
+- The workflow uses `DesiredCount=0` on the first deploy and scales to 1 after the image is pushed.
