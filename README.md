@@ -14,5 +14,5 @@ Personal homepage site for Matt Davies.
 
 ## PR previews
 
-Pull requests deploy preview sites at `pr-<id>.matthewsdavies.com` while the PR is open. Details and setup
+Pull requests deploy to `preview.matthewsdavies.com`, always showing the most recently updated PR. Details and setup
 are documented in `ci/README.md`.
