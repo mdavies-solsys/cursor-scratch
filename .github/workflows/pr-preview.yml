@@ -1,0 +1,104 @@
+name: PR Preview
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: pr-preview
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: us-east-2
+  STACK_NAME: simple-site-fargate
+  PREVIEW_SUBDOMAIN: preview
+  DOCKERHUB_SECRET_ARN: arn:aws:secretsmanager:us-east-2:834184586696:secret:dockerhub-kst0iN
+  PREVIEW_IMAGE_TAG: preview
+  PREVIEW_DESIRED_COUNT: "1"
+
+jobs:
+  deploy_preview:
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_PREVIEW_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve ECR repository
+        run: |
+          set -euo pipefail
+          ECR_REPO_URI="$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='EcrRepositoryUri'].OutputValue" \
+            --output text)"
+          echo "ECR_REPO_URI=${ECR_REPO_URI}" >> "$GITHUB_ENV"
+
+      - name: Build and push preview image
+        run: |
+          set -euo pipefail
+          echo "Logging in to Docker Hub..."
+          DOCKERHUB_SECRET_JSON="$(aws secretsmanager get-secret-value \
+            --secret-id "$DOCKERHUB_SECRET_ARN" \
+            --query SecretString \
+            --output text)"
+          DOCKERHUB_USERNAME="$(python3 -c 'import json, os; print(json.loads(os.environ["DOCKERHUB_SECRET_JSON"])["username"])')"
+          DOCKERHUB_PASSWORD="$(python3 -c 'import json, os; print(json.loads(os.environ["DOCKERHUB_SECRET_JSON"])["password"])')"
+          printf '%s' "$DOCKERHUB_PASSWORD" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+          unset DOCKERHUB_PASSWORD DOCKERHUB_SECRET_JSON
+
+          echo "Logging in to Amazon ECR..."
+          ECR_REGISTRY="$(echo "$ECR_REPO_URI" | cut -d/ -f1)"
+          aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+          echo "Building Docker image..."
+          docker build -t "$ECR_REPO_URI:$PREVIEW_IMAGE_TAG" -f src/Dockerfile src
+
+          echo "Pushing Docker image..."
+          docker push "$ECR_REPO_URI:$PREVIEW_IMAGE_TAG"
+
+      - name: Update preview guestbook lambda
+        run: |
+          set -euo pipefail
+          zip -j guestbook-preview.zip ci/guestbook/index.js
+          aws lambda update-function-code \
+            --function-name "${STACK_NAME}-preview-guestbook" \
+            --zip-file "fileb://guestbook-preview.zip"
+
+      - name: Refresh preview service
+        run: |
+          set -euo pipefail
+          aws ecs update-service \
+            --cluster "${STACK_NAME}-cluster" \
+            --service "${STACK_NAME}-preview-service" \
+            --desired-count "$PREVIEW_DESIRED_COUNT" \
+            --force-new-deployment
+
+  stop_preview:
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_PREVIEW_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Scale preview service down
+        run: |
+          set -euo pipefail
+          aws ecs update-service \
+            --cluster "${STACK_NAME}-cluster" \
+            --service "${STACK_NAME}-preview-service" \
+            --desired-count 0

@@ -14,13 +14,13 @@ CloudFormation + CI/CD to deploy the simple static website (`src/`) to **AWS ECS
 - `ci/buildspec.yml`: CodeBuild buildspec used by the pipeline
 - `src/Dockerfile`: Container image for the static site
 
-### Guestbook API (optional)
+### Guestbook API (path-based)
 
-The CloudFormation template also provisions a small DynamoDB-backed guestbook API (Lambda + HTTP API) and maps it to
-`https://api.<RootDomainName>` via an API Gateway custom domain.
-After deploy, ensure the `guestbook-api` meta tag in `src/index.html` points at that URL (this repo defaults to
-`https://api.matthewsdavies.com`). Outputs include `GuestbookApiUrl` (custom domain) and `GuestbookApiGatewayUrl`
-(execute-api) for debugging.
+The CloudFormation template provisions a DynamoDB-backed guestbook API (Lambda) and routes it through the ALB at
+`/api/guestbook` on the same domain. The `guestbook-api` meta tag in `src/index.html` should be `/api`, and the
+`GuestbookApiUrl` output includes the full URL. When previews are enabled, the preview subdomain uses a separate
+Lambda + DynamoDB table for isolated testing.
+The guestbook Lambda source lives in `ci/guestbook/index.js` and is packaged by the preview workflow.
 
 ### Required parameters
 
@@ -34,6 +34,10 @@ After deploy, ensure the `guestbook-api` meta tag in `src/index.html` points at 
 Optional parameters you may want to override:
 
 - `BranchName` (default `main`)
+- `EnablePipeline` (default `true`)
+- `EnablePreview` (default `false`)
+- `PreviewSubdomain` (default `preview`)
+- `PreviewDesiredCount` (default `0`)
 - `DesiredCount`, `Cpu`, `Memory`
 - `GuestbookRateLimitMax` (default `5`)
 - `GuestbookRateLimitWindowSeconds` (default `3600`)
@@ -66,3 +70,24 @@ aws cloudformation deploy \
 
 After creation completes, visit the `WebsiteUrl` output.
 
+### PR preview environments
+
+Pull request previews deploy to a single preview subdomain (default `preview.<RootDomainName>`). The workflow builds
+the PR image, pushes the `:preview` tag to ECR, and forces a new deployment of the preview ECS service. The most
+recently updated PR wins.
+
+Required setup (one-time):
+
+- Set `EnablePreview=true` and `PreviewDesiredCount=1` in the stack parameters.
+- Create an IAM role for GitHub OIDC with permissions to:
+  - Read the Docker Hub secret in Secrets Manager.
+  - Push images to ECR.
+  - Describe CloudFormation stacks (for the ECR repo output).
+  - Update the preview guestbook Lambda code.
+  - Update the preview ECS service.
+- Add the role ARN as a GitHub Actions secret named `AWS_PREVIEW_ROLE_ARN`.
+
+Notes:
+
+- The workflow skips PRs from forks (no secrets/credentials).
+- Closing a PR scales the preview service down to 0.

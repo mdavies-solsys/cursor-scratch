@@ -14,6 +14,10 @@ parameters:
   DesiredCount: 1
   Cpu: "256"
   Memory: "512"
+  EnablePipeline: true
+  EnablePreview: true
+  PreviewSubdomain: preview
+  PreviewDesiredCount: 1
   GuestbookRateLimitMax: 5
   GuestbookRateLimitWindowSeconds: 3600
 

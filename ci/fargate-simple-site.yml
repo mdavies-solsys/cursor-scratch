@@ -30,6 +30,23 @@ Parameters:
     Default: main
     Description: Branch to build/deploy from.
 
+  EnablePipeline:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Whether to provision CodePipeline/CodeBuild resources.
+
+  EnablePreview:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Whether to provision the preview ECS service and routing.
+
+  PreviewSubdomain:
+    Type: String
+    Default: preview
+    Description: Subdomain used for the preview environment (e.g. preview).
+
   DockerHubSecretArn:
     Type: String
     Description: ARN of the Secrets Manager secret containing Docker Hub username/password.
@@ -39,6 +56,12 @@ Parameters:
     Default: 0
     MinValue: 0
     Description: Number of Fargate tasks. Set to 0 for first deploy until an image exists.
+
+  PreviewDesiredCount:
+    Type: Number
+    Default: 0
+    MinValue: 0
+    Description: Number of Fargate tasks for the preview service.
 
   Cpu:
     Type: String
@@ -63,9 +86,14 @@ Parameters:
     MinValue: 60
     Description: IP rate-limit window in seconds.
 
+Conditions:
+  UsePipeline: !Equals [!Ref EnablePipeline, "true"]
+  UsePreview: !Equals [!Ref EnablePreview, "true"]
+
 Resources:
   ArtifactsBucket:
     Type: AWS::S3::Bucket
+    Condition: UsePipeline
     Properties:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
@@ -79,6 +107,7 @@ Resources:
 
   ArtifactsBucketPolicy:
     Type: AWS::S3::BucketPolicy
+    Condition: UsePipeline
     Properties:
       Bucket: !Ref ArtifactsBucket
       PolicyDocument:
@@ -99,6 +128,7 @@ Resources:
     Type: AWS::ECR::Repository
     Properties:
       RepositoryName: !Sub "${AWS::StackName}"
+      EmptyOnDelete: true
       ImageScanningConfiguration:
         ScanOnPush: true
       EncryptionConfiguration:
@@ -255,21 +285,37 @@ Resources:
       Matcher:
         HttpCode: "200-399"
 
+  PreviewTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: UsePreview
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !Ref Vpc
+      HealthCheckEnabled: true
+      HealthCheckPath: /
+      Matcher:
+        HttpCode: "200-399"
+
   SiteCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
       DomainName: !Ref RootDomainName
       SubjectAlternativeNames:
         - !Sub "www.${RootDomainName}"
-        - !Sub "api.${RootDomainName}"
+        - !If [UsePreview, !Sub "${PreviewSubdomain}.${RootDomainName}", !Ref "AWS::NoValue"]
       ValidationMethod: DNS
       DomainValidationOptions:
         - DomainName: !Ref RootDomainName
           HostedZoneId: !Ref HostedZoneId
         - DomainName: !Sub "www.${RootDomainName}"
           HostedZoneId: !Ref HostedZoneId
-        - DomainName: !Sub "api.${RootDomainName}"
-          HostedZoneId: !Ref HostedZoneId
+        - !If
+          - UsePreview
+          - DomainName: !Sub "${PreviewSubdomain}.${RootDomainName}"
+            HostedZoneId: !Ref HostedZoneId
+          - !Ref "AWS::NoValue"
 
   HttpsListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -296,6 +342,59 @@ Resources:
             Port: "443"
             StatusCode: HTTP_301
 
+  PreviewApiRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: UsePreview
+    Properties:
+      ListenerArn: !Ref HttpsListener
+      Priority: 10
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+              - !Sub "${PreviewSubdomain}.${RootDomainName}"
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - "/api/*"
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref PreviewGuestbookLambdaTargetGroup
+
+  PreviewHostRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: UsePreview
+    Properties:
+      ListenerArn: !Ref HttpsListener
+      Priority: 20
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+              - !Sub "${PreviewSubdomain}.${RootDomainName}"
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref PreviewTargetGroup
+
+  GuestbookApiRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpsListener
+      Priority: 30
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+              - !Ref RootDomainName
+              - !Sub "www.${RootDomainName}"
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - "/api/*"
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref GuestbookLambdaTargetGroup
+
   DnsRecords:
     Type: AWS::Route53::RecordSetGroup
     Properties:
@@ -311,11 +410,14 @@ Resources:
           AliasTarget:
             DNSName: !GetAtt LoadBalancer.DNSName
             HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
-        - Name: !Sub "api.${RootDomainName}"
-          Type: A
-          AliasTarget:
-            DNSName: !GetAtt GuestbookApiDomain.RegionalDomainName
-            HostedZoneId: !GetAtt GuestbookApiDomain.RegionalHostedZoneId
+        - !If
+          - UsePreview
+          - Name: !Sub "${PreviewSubdomain}.${RootDomainName}"
+            Type: A
+            AliasTarget:
+              DNSName: !GetAtt LoadBalancer.DNSName
+              HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
+          - !Ref "AWS::NoValue"
 
   Cluster:
     Type: AWS::ECS::Cluster
@@ -330,6 +432,29 @@ Resources:
 
   GuestbookTable:
     Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  PreviewGuestbookTable:
+    Type: AWS::DynamoDB::Table
+    Condition: UsePreview
     Properties:
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
@@ -389,9 +514,12 @@ Resources:
           TABLE_NAME: !Ref GuestbookTable
           RATE_LIMIT_MAX: !Ref GuestbookRateLimitMax
           RATE_LIMIT_WINDOW_SECONDS: !Ref GuestbookRateLimitWindowSeconds
-          ALLOWED_ORIGINS: !Sub "https://${RootDomainName},https://www.${RootDomainName}"
+          ALLOWED_ORIGINS: !If
+            - UsePreview
+            - !Sub "https://${RootDomainName},https://www.${RootDomainName},https://${PreviewSubdomain}.${RootDomainName}"
+            - !Sub "https://${RootDomainName},https://www.${RootDomainName}"
       Code:
-        ZipFile: |
+        ZipFile: &GuestbookLambdaCode |
           const crypto = require("crypto");
           const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
           const {
@@ -424,6 +552,7 @@ Resources:
           };
 
           const getOrigin = (event) => event?.headers?.origin || event?.headers?.Origin || "";
+          const getPath = (event) => event?.rawPath || event?.path || event?.requestContext?.http?.path || "";
           const getIp = (event) => {
             const forwarded = event?.headers?.["x-forwarded-for"] || event?.headers?.["X-Forwarded-For"];
             if (forwarded) {
@@ -481,11 +610,15 @@ Resources:
 
           exports.handler = async (event) => {
             const origin = getOrigin(event);
+            const path = getPath(event);
             const method = event?.requestContext?.http?.method || event?.httpMethod || "GET";
 
             try {
               if (!TABLE_NAME) {
                 return response(500, { error: "Guestbook unavailable." }, origin);
+              }
+              if (path && !/\/guestbook$/.test(path)) {
+                return response(404, { error: "Not found." }, origin);
               }
               if (method === "OPTIONS") return response(200, { ok: true }, origin);
               if (method === "GET") {
@@ -558,81 +691,95 @@ Resources:
             }
           };
 
+  PreviewGuestbookFunctionRole:
+    Type: AWS::IAM::Role
+    Condition: UsePreview
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-preview-guestbook-dynamo"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Scan
+                Resource: !GetAtt PreviewGuestbookTable.Arn
+
+  PreviewGuestbookFunction:
+    Type: AWS::Lambda::Function
+    Condition: UsePreview
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-preview-guestbook"
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt PreviewGuestbookFunctionRole.Arn
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PreviewGuestbookTable
+          RATE_LIMIT_MAX: !Ref GuestbookRateLimitMax
+          RATE_LIMIT_WINDOW_SECONDS: !Ref GuestbookRateLimitWindowSeconds
+          ALLOWED_ORIGINS: !Sub "https://${PreviewSubdomain}.${RootDomainName}"
+      Code:
+        ZipFile: *GuestbookLambdaCode
+
   GuestbookLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/${GuestbookFunction}"
       RetentionInDays: 14
 
-  GuestbookApi:
-    Type: AWS::ApiGatewayV2::Api
+  PreviewGuestbookLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: UsePreview
     Properties:
-      Name: !Sub "${AWS::StackName}-guestbook"
-      ProtocolType: HTTP
-      CorsConfiguration:
-        AllowHeaders:
-          - content-type
-        AllowMethods:
-          - GET
-          - POST
-          - OPTIONS
-        AllowOrigins:
-          - !Sub "https://${RootDomainName}"
-          - !Sub "https://www.${RootDomainName}"
-        MaxAge: 86400
+      LogGroupName: !Sub "/aws/lambda/${PreviewGuestbookFunction}"
+      RetentionInDays: 14
 
-  GuestbookApiIntegration:
-    Type: AWS::ApiGatewayV2::Integration
+  GuestbookLambdaTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      ApiId: !Ref GuestbookApi
-      IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GuestbookFunction.Arn}/invocations"
-      PayloadFormatVersion: "2.0"
+      TargetType: lambda
+      Targets:
+        - Id: !GetAtt GuestbookFunction.Arn
 
-  GuestbookApiRouteGet:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId: !Ref GuestbookApi
-      RouteKey: "GET /guestbook"
-      Target: !Sub "integrations/${GuestbookApiIntegration}"
-
-  GuestbookApiRoutePost:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId: !Ref GuestbookApi
-      RouteKey: "POST /guestbook"
-      Target: !Sub "integrations/${GuestbookApiIntegration}"
-
-  GuestbookApiStage:
-    Type: AWS::ApiGatewayV2::Stage
-    Properties:
-      ApiId: !Ref GuestbookApi
-      StageName: "$default"
-      AutoDeploy: true
-
-  GuestbookApiDomain:
-    Type: AWS::ApiGatewayV2::DomainName
-    Properties:
-      DomainName: !Sub "api.${RootDomainName}"
-      DomainNameConfigurations:
-        - CertificateArn: !Ref SiteCertificate
-          EndpointType: REGIONAL
-          SecurityPolicy: TLS_1_2
-
-  GuestbookApiMapping:
-    Type: AWS::ApiGatewayV2::ApiMapping
-    Properties:
-      ApiId: !Ref GuestbookApi
-      DomainName: !Ref GuestbookApiDomain
-      Stage: !Ref GuestbookApiStage
-
-  GuestbookApiPermission:
+  GuestbookAlbPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !Ref GuestbookFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${GuestbookApi}/*/*"
+      Principal: elasticloadbalancing.amazonaws.com
+      SourceArn: !Ref GuestbookLambdaTargetGroup
+
+  PreviewGuestbookLambdaTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: UsePreview
+    Properties:
+      TargetType: lambda
+      Targets:
+        - Id: !GetAtt PreviewGuestbookFunction.Arn
+
+  PreviewGuestbookAlbPermission:
+    Type: AWS::Lambda::Permission
+    Condition: UsePreview
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref PreviewGuestbookFunction
+      Principal: elasticloadbalancing.amazonaws.com
+      SourceArn: !Ref PreviewGuestbookLambdaTargetGroup
 
   TaskExecutionRole:
     Type: AWS::IAM::Role
@@ -670,6 +817,30 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
+  PreviewTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Condition: UsePreview
+    Properties:
+      Family: !Sub "${AWS::StackName}-preview"
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: !Ref Cpu
+      Memory: !Ref Memory
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: app
+          Image: !Sub "${SiteEcrRepository.RepositoryUri}:preview"
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs-preview
+
   Service:
     Type: AWS::ECS::Service
     DependsOn:
@@ -696,8 +867,36 @@ Resources:
           ContainerPort: 80
           TargetGroupArn: !Ref TargetGroup
 
+  PreviewService:
+    Type: AWS::ECS::Service
+    Condition: UsePreview
+    DependsOn:
+      - HttpsListener
+    Properties:
+      ServiceName: !Sub "${AWS::StackName}-preview-service"
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref PreviewDesiredCount
+      TaskDefinition: !Ref PreviewTaskDefinition
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 50
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref ServiceSecurityGroup
+          Subnets:
+            - !Ref PublicSubnetA
+            - !Ref PublicSubnetB
+      LoadBalancers:
+        - ContainerName: app
+          ContainerPort: 80
+          TargetGroupArn: !Ref PreviewTargetGroup
+
   CodeBuildRole:
     Type: AWS::IAM::Role
+    Condition: UsePipeline
     Properties:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -749,6 +948,7 @@ Resources:
 
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
+    Condition: UsePipeline
     Properties:
       Name: !Sub "${AWS::StackName}-build"
       ServiceRole: !GetAtt CodeBuildRole.Arn
@@ -771,6 +971,7 @@ Resources:
 
   CodePipelineRole:
     Type: AWS::IAM::Role
+    Condition: UsePipeline
     Properties:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -824,6 +1025,7 @@ Resources:
 
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
+    Condition: UsePipeline
     Properties:
       Name: !Sub "${AWS::StackName}-pipeline"
       RoleArn: !GetAtt CodePipelineRole.Arn
@@ -894,13 +1096,19 @@ Outputs:
   PipelineName:
     Description: CodePipeline name.
     Value: !Ref Pipeline
+    Condition: UsePipeline
   GuestbookApiUrl:
-    Description: Guestbook API base URL (custom domain).
-    Value: !Sub "https://api.${RootDomainName}"
-  GuestbookApiGatewayUrl:
-    Description: Guestbook API base URL (execute-api).
-    Value: !Sub "https://${GuestbookApi}.execute-api.${AWS::Region}.amazonaws.com"
+    Description: Guestbook API URL (path-based).
+    Value: !Sub "https://${RootDomainName}/api/guestbook"
+  PreviewWebsiteUrl:
+    Description: Preview website URL (HTTPS).
+    Value: !Sub "https://${PreviewSubdomain}.${RootDomainName}"
+    Condition: UsePreview
   GuestbookTableName:
     Description: Guestbook DynamoDB table name.
     Value: !Ref GuestbookTable
+  PreviewGuestbookTableName:
+    Description: Preview guestbook DynamoDB table name.
+    Value: !Ref PreviewGuestbookTable
+    Condition: UsePreview
 
