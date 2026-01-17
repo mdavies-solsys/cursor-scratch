@@ -20,6 +20,7 @@ The CloudFormation template provisions a DynamoDB-backed guestbook API (Lambda) 
 `/api/guestbook` on the same domain. The `guestbook-api` meta tag in `src/index.html` should be `/api`, and the
 `GuestbookApiUrl` output includes the full URL. When previews are enabled, the preview subdomain uses a separate
 Lambda + DynamoDB table for isolated testing.
+The guestbook Lambda source lives in `ci/guestbook/index.js` and is packaged by the preview workflow.
 
 ### Required parameters
 
@@ -82,6 +83,7 @@ Required setup (one-time):
   - Read the Docker Hub secret in Secrets Manager.
   - Push images to ECR.
   - Describe CloudFormation stacks (for the ECR repo output).
+  - Update the preview guestbook Lambda code.
   - Update the preview ECS service.
 - Add the role ARN as a GitHub Actions secret named `AWS_PREVIEW_ROLE_ARN`.
 

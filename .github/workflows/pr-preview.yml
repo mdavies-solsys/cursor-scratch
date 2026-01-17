@@ -68,6 +68,14 @@ jobs:
           echo "Pushing Docker image..."
           docker push "$ECR_REPO_URI:$PREVIEW_IMAGE_TAG"
 
+      - name: Update preview guestbook lambda
+        run: |
+          set -euo pipefail
+          zip -j guestbook-preview.zip ci/guestbook/index.js
+          aws lambda update-function-code \
+            --function-name "${STACK_NAME}-preview-guestbook" \
+            --zip-file "fileb://guestbook-preview.zip"
+
       - name: Refresh preview service
         run: |
           set -euo pipefail
