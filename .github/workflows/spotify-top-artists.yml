@@ -1,0 +1,45 @@
+name: Update Spotify top artists
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-spotify:
+    runs-on: ubuntu-latest
+    env:
+      SPOTIFY_TIME_RANGE: medium_term
+      SPOTIFY_TOP_LIMIT: "10"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Fetch latest Spotify artists
+        env:
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          SPOTIFY_REFRESH_TOKEN: ${{ secrets.SPOTIFY_REFRESH_TOKEN }}
+        run: node scripts/fetch-spotify-top-artists.mjs
+
+      - name: Commit and push if changed
+        run: |
+          if git diff --quiet; then
+            echo "No Spotify updates to commit."
+            exit 0
+          fi
+          git add src/data/spotify-top-artists.json
+          git config user.name "spotify-bot"
+          git config user.email "spotify-bot@users.noreply.github.com"
+          git commit -m "chore: update spotify top artists"
+          git push
