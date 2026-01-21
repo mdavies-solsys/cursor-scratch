@@ -289,6 +289,115 @@
         gap: 16px;
       }
 
+      .spotify {
+        display: grid;
+        gap: 16px;
+      }
+
+      .spotify-header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: baseline;
+        justify-content: space-between;
+      }
+
+      .spotify-range {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .spotify-status {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .spotify-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .spotify-list li {
+        padding-left: 0;
+      }
+
+      .spotify-list li::before {
+        display: none;
+      }
+
+      .spotify-card {
+        display: grid;
+        grid-template-columns: 32px 52px 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 12px;
+        border-radius: 16px;
+        border: 1px solid var(--stroke);
+        background: rgba(9, 11, 26, 0.6);
+        color: inherit;
+        text-decoration: none;
+        transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+      }
+
+      .spotify-card:hover {
+        transform: translateY(-1px);
+        border-color: rgba(234, 241, 255, 0.35);
+        background: rgba(21, 29, 57, 0.6);
+      }
+
+      .spotify-card:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+
+      .spotify-rank {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        color: var(--muted);
+      }
+
+      .spotify-art {
+        width: 52px;
+        height: 52px;
+        border-radius: 12px;
+        border: 1px solid var(--stroke);
+        object-fit: cover;
+        background: rgba(21, 29, 57, 0.7);
+      }
+
+      .spotify-art--empty {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        color: rgba(234, 241, 255, 0.6);
+      }
+
+      .spotify-meta {
+        display: grid;
+        gap: 4px;
+      }
+
+      .spotify-name {
+        font-weight: 600;
+        color: var(--text);
+      }
+
+      .spotify-genres {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .spotify-link-hint {
+        font-size: 0.8rem;
+        color: var(--accent);
+      }
+
+      .spotify-empty {
+        color: var(--muted);
+      }
+
       .guestbook-form {
         display: grid;
         gap: 12px;
@@ -437,6 +546,12 @@
         color: rgba(234, 241, 255, 0.6);
       }
 
+      @media (max-width: 600px) {
+        .spotify-link-hint {
+          display: none;
+        }
+      }
+
       @media (min-width: 900px) {
         .hero {
           grid-template-columns: 1.2fr 0.8fr;
@@ -542,6 +657,17 @@
               <strong>Git sync:</strong> a <code>ci/deployment.yaml</code> is included to make CloudFormation GitSync
               deployments straightforward.
             </li>
+          </ul>
+        </section>
+
+        <section class="glass spotify" data-spotify>
+          <div class="spotify-header">
+            <h2>Top artists on Spotify</h2>
+            <span class="spotify-range" data-spotify-range>Last 6 months</span>
+          </div>
+          <p class="spotify-status" data-spotify-status>Updated weekly.</p>
+          <ul class="spotify-list" data-spotify-list>
+            <li class="spotify-empty">Spotify data is loading.</li>
           </ul>
         </section>
 
@@ -845,6 +971,125 @@
               if (submitButton) submitButton.disabled = false;
             }
           });
+        }
+
+        const spotifySection = document.querySelector("[data-spotify]");
+        if (spotifySection) {
+          const spotifyList = spotifySection.querySelector("[data-spotify-list]");
+          const spotifyStatus = spotifySection.querySelector("[data-spotify-status]");
+          const spotifyRange = spotifySection.querySelector("[data-spotify-range]");
+
+          const setSpotifyStatus = (message) => {
+            if (!spotifyStatus) return;
+            spotifyStatus.textContent = message || "";
+          };
+
+          const formatSpotifyRange = (value) => {
+            const ranges = {
+              short_term: "Last 4 weeks",
+              medium_term: "Last 6 months",
+              long_term: "All time",
+            };
+            return ranges[value] || "Last 6 months";
+          };
+
+          const formatSpotifyDate = (value) => {
+            if (!value) return "";
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return "";
+            return date.toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            });
+          };
+
+          const renderSpotifyList = (artists) => {
+            if (!spotifyList) return;
+            spotifyList.innerHTML = "";
+            if (!artists.length) {
+              const emptyItem = document.createElement("li");
+              emptyItem.className = "spotify-empty";
+              emptyItem.textContent = "Spotify data is not available yet.";
+              spotifyList.appendChild(emptyItem);
+              return;
+            }
+
+            artists.forEach((artist, index) => {
+              const item = document.createElement("li");
+              const link = document.createElement("a");
+              link.className = "spotify-card";
+              link.href = artist.url || "https://open.spotify.com";
+              link.target = "_blank";
+              link.rel = "noreferrer";
+
+              const rank = document.createElement("span");
+              rank.className = "spotify-rank";
+              rank.textContent = String(artist.rank || index + 1);
+              link.appendChild(rank);
+
+              if (artist.image) {
+                const art = document.createElement("img");
+                art.className = "spotify-art";
+                art.src = artist.image;
+                art.alt = `Artist image for ${artist.name || "unknown"}`;
+                art.loading = "lazy";
+                art.decoding = "async";
+                link.appendChild(art);
+              } else {
+                const art = document.createElement("span");
+                art.className = "spotify-art spotify-art--empty";
+                art.textContent = "No image";
+                art.setAttribute("aria-hidden", "true");
+                link.appendChild(art);
+              }
+
+              const meta = document.createElement("div");
+              meta.className = "spotify-meta";
+
+              const name = document.createElement("span");
+              name.className = "spotify-name";
+              name.textContent = artist.name || "Unknown artist";
+              meta.appendChild(name);
+
+              const genres = document.createElement("span");
+              genres.className = "spotify-genres";
+              const genreList = Array.isArray(artist.genres) ? artist.genres.filter(Boolean) : [];
+              genres.textContent = genreList.length ? genreList.join(" · ") : "Spotify artist";
+              meta.appendChild(genres);
+
+              link.appendChild(meta);
+
+              const hint = document.createElement("span");
+              hint.className = "spotify-link-hint";
+              hint.textContent = "Open in Spotify";
+              link.appendChild(hint);
+
+              item.appendChild(link);
+              spotifyList.appendChild(item);
+            });
+          };
+
+          const loadSpotify = async () => {
+            try {
+              const response = await fetch("/data/spotify-top-artists.json", { cache: "no-store" });
+              if (!response.ok) {
+                throw new Error("Failed to load Spotify data.");
+              }
+              const data = await response.json();
+              const artists = Array.isArray(data.artists) ? data.artists : [];
+              const rangeLabel = formatSpotifyRange(data.timeRange);
+              if (spotifyRange) spotifyRange.textContent = rangeLabel;
+              const updated = formatSpotifyDate(data.generatedAt);
+              setSpotifyStatus(updated ? `Updated ${updated}.` : "Updated weekly.");
+              renderSpotifyList(artists);
+            } catch (err) {
+              setSpotifyStatus("Spotify data is not available yet.");
+              renderSpotifyList([]);
+            }
+          };
+
+          loadSpotify();
         }
 
         loadGuestbook();
