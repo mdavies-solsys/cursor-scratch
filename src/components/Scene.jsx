@@ -80,10 +80,24 @@ const useMultiplayer = () => {
   return { players, localIdRef, localColorRef, sendMove };
 };
 
+const HeadLight = () => {
+  const lightRef = useRef(null);
+  const { camera } = useThree();
+
+  useFrame(() => {
+    if (!lightRef.current) {
+      return;
+    }
+    lightRef.current.position.copy(camera.position);
+  });
+
+  return <pointLight ref={lightRef} position={[0, 1.6, 0]} />;
+};
+
 const World = () => {
   return (
     <>
-      <pointLight position={[0, 1.6, 0]} />
+      <HeadLight />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
         <planeGeometry args={[50, 50]} />
         <meshStandardMaterial color="#cccccc" />
