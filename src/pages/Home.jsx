@@ -207,6 +207,13 @@ const Home = () => {
             </section>
           </div>
 
+          <section className="vr-card">
+            <p className="vr-card__title">Ready to step inside?</p>
+            <Link className="guestbook-button vr-card__button" to="/vr-intro">
+              Enter VR
+            </Link>
+          </section>
+
           <Guestbook />
 
           <section className="glass about">
@@ -263,14 +270,31 @@ const Home = () => {
                 </strong>
                 : track your anime watch list and more; a cool site written by a cool girl.
               </li>
+              <li>
+                <strong>
+                  <a href="https://cursor.sh" target="_blank" rel="noreferrer">
+                    cursor.sh
+                  </a>
+                </strong>
+                : an AI-first code editor for rapid iteration.
+              </li>
+              <li>
+                <strong>
+                  <a href="https://git-tower.com" target="_blank" rel="noreferrer">
+                    git-tower.com
+                  </a>
+                </strong>
+                : a polished Git client that keeps version control clear.
+              </li>
+              <li>
+                <strong>
+                  <a href="https://x.com" target="_blank" rel="noreferrer">
+                    x.com
+                  </a>
+                </strong>
+                : the real-time feed I watch for tech and news.
+              </li>
             </ul>
-          </section>
-
-          <section className="vr-card">
-            <p className="vr-card__title">Ready to step inside?</p>
-            <Link className="guestbook-button vr-card__button" to="/vr-intro">
-              Enter VR
-            </Link>
           </section>
 
           <p className="meta">
