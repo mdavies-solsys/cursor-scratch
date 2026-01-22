@@ -180,81 +180,30 @@ const Home = () => {
                 This is a very basic landing page to prove the website is being served correctly.
               </p>
             </div>
-            <div>
-              <h2>How this site was built &amp; deployed (100% mobile from an iPhone)</h2>
+            <div className="hero-actions">
+              <h2>Built 100% on a phone</h2>
               <p>
-                This site is intentionally simple, but the deployment is real: it’s containerized and shipped to AWS ECS
-                Fargate behind an ALB with TLS, with CI/CD wired up so changes can automatically roll out from Git.
+                This site and its AWS deployment were created entirely on an iPhone, proving a full mobile-first workflow
+                without a laptop.
               </p>
-              <p>
-                Every step of the process was done on an iPhone. Cursor agent instructions, GitHub interactions, and AWS
-                operations were all executed mobile-first to prove the entire workflow can be done without a laptop.
-              </p>
+              <Link className="guestbook-button" to="/mobile-build">
+                Read the mobile build story
+              </Link>
             </div>
           </section>
-
-          <section className="glass">
-            <ul>
-              <li>
-                <strong>Start small:</strong> a single static <code>index.html</code> in <code>src/</code>.
-              </li>
-              <li>
-                <strong>Containerize:</strong> an NGINX <code>Dockerfile</code> serves the static HTML on port 80.
-              </li>
-              <li>
-                <strong>Infrastructure:</strong> a CloudFormation template provisions VPC networking, an internet-facing
-                ALB, an ACM certificate validated via Route 53, and an ECS Fargate service pulling from ECR.
-              </li>
-              <li>
-                <strong>Automated delivery:</strong> a CodePipeline + CodeBuild flow (via an existing CodeStar/CodeConnections
-                connection) builds the image and deploys it to the running service when the repo updates.
-              </li>
-              <li>
-                <strong>Git sync:</strong> a <code>ci/deployment.yaml</code> is included to make CloudFormation GitSync
-                deployments straightforward.
-              </li>
-            </ul>
-          </section>
-
-          <div className="content-grid">
-            <section className="glass">
-              <h2>Mobile-only workflow highlights</h2>
-              <ul>
-                <li>
-                  <strong>Cursor agents on iPhone:</strong> all prompt iterations, code generation, and review flowed through a
-                  mobile session.
-                </li>
-                <li>
-                  <strong>GitHub fully mobile:</strong> the initial repo was created on GitHub from the phone, with subsequent
-                  commits, reviews, and merges also handled on mobile.
-                </li>
-                <li>
-                  <strong>AWS fully mobile:</strong> parameter ARNs were gathered (Route 53 zone, ACM cert, CodeConnections),
-                  the CloudFormation stack was deployed, and ECS services + CloudFormation events + pipeline runs were
-                  monitored from the iPhone.
-                </li>
-              </ul>
-            </section>
-
-            <section className="glass">
-              <h2>Closing notes</h2>
+          <section className="glass experience">
+            <div>
+              <h2>Experimenting with game-like experiences</h2>
               <p>
-                The overall effort was a short set of iterations: specify the outcome, generate an initial version, review it,
-                remove unnecessary knobs, and then lock in the final domain + connection details.
+                I’m exploring playful, game-inspired spaces on the web, including a lightweight VR world you can step into
+                today.
               </p>
-              <p>
-                A key part of making an agent effective is human product intuition. Matthew Davies guided the agent with clear
-                constraints, practical AWS context (Route 53 zone + connection ARN), and quick reviews that kept the solution
-                focused and deployable without overengineering.
-              </p>
-            </section>
-          </div>
-
-          <section className="vr-card">
-            <p className="vr-card__title">Ready to step inside?</p>
-            <Link className="guestbook-button vr-card__button" to="/vr-intro">
-              Enter VR
-            </Link>
+            </div>
+            <div className="experience__actions">
+              <Link className="guestbook-button" to="/vr-intro">
+                Visit the VR experience
+              </Link>
+            </div>
           </section>
 
           <Guestbook />
