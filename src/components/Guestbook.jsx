@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const formatDate = (value) => {
   if (!value) return "";
@@ -8,6 +8,7 @@ const formatDate = (value) => {
 };
 
 const Guestbook = () => {
+  const sectionRef = useRef(null);
   const [items, setItems] = useState([]);
   const [count, setCount] = useState("0");
   const [status, setStatus] = useState({ message: "", tone: "" });
@@ -58,6 +59,22 @@ const Guestbook = () => {
     if (savedToken) {
       setAdminToken(savedToken);
     }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleAdminEnable = () => {
+      try {
+        window.localStorage.setItem("guestbookAdmin", "1");
+      } catch (error) {
+        // Local storage unavailable.
+      }
+      setAdminMode(true);
+      setAdminStatusMessage("Admin mode enabled.", "success");
+      sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    window.addEventListener("guestbook-admin-enable", handleAdminEnable);
+    return () => window.removeEventListener("guestbook-admin-enable", handleAdminEnable);
   }, []);
 
   useEffect(() => {
@@ -244,7 +261,7 @@ const Guestbook = () => {
   const pendingCount = adminItems.filter((item) => item.approved === false).length;
 
   return (
-    <section className="glass guestbook" data-guestbook>
+    <section className="glass guestbook" data-guestbook ref={sectionRef}>
       <h2>Guestbook</h2>
       <p>Drop your X handle to join the guestbook. Entries appear after approval.</p>
       <form className="guestbook-form" data-guestbook-form onSubmit={handleSubmit}>

@@ -107,6 +107,13 @@ a {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-size: 0.78rem;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.brand-name {
+  touch-action: manipulation;
 }
 
 .brand-dot {

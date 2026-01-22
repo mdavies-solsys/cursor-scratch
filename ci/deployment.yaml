@@ -16,6 +16,6 @@ parameters:
   Memory: "512"
   GuestbookRateLimitMax: 5
   GuestbookRateLimitWindowSeconds: 3600
-  GuestbookAdminSecretArn: ""
+  GuestbookAdminSecretArn: arn:aws:secretsmanager:us-east-2:834184586696:secret:matt-site-secrets-mpQ2qq
 
 
