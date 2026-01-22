@@ -12,7 +12,7 @@ const Guestbook = () => {
   const [items, setItems] = useState([]);
   const [count, setCount] = useState("0");
   const [status, setStatus] = useState({ message: "", tone: "" });
-  const [note, setNote] = useState("Handles must be 1-15 characters. Entries appear after approval.");
+  const [note, setNote] = useState("Handles must be 1-15 characters.");
   const [handle, setHandle] = useState("");
   const [company, setCompany] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -128,7 +128,7 @@ const Guestbook = () => {
       }
       if (!adminToken) {
         if (!silent) {
-          setAdminStatusMessage("Add your admin token to load entries.", "error");
+          setAdminStatusMessage("Long-press your name to sign in as admin.", "error");
         }
         return;
       }
@@ -225,8 +225,9 @@ const Guestbook = () => {
 
   const clearAdminToken = () => {
     setAdminToken("");
+    setAdminMode(false);
     setAdminItems([]);
-    setAdminStatusMessage("Admin token cleared.", "");
+    setAdminStatusMessage("Admin access cleared.", "");
   };
 
   const handleSubmit = async (event) => {
@@ -267,7 +268,7 @@ const Guestbook = () => {
   return (
     <section className="glass guestbook" data-guestbook ref={sectionRef}>
       <h2>Guestbook</h2>
-      <p>Drop your X handle to join the guestbook. Entries appear after approval.</p>
+      <p>Drop your X handle to join the guestbook. Entries show up right away.</p>
       <form className="guestbook-form" data-guestbook-form onSubmit={handleSubmit}>
         <label className="guestbook-field">
           <span className="guestbook-label">X handle</span>
@@ -302,9 +303,11 @@ const Guestbook = () => {
           </span>
         </div>
       </form>
-      <div className="guestbook-status" data-guestbook-status data-tone={status.tone} aria-live="polite">
-        {status.message}
-      </div>
+      {status.message ? (
+        <div className="guestbook-status" data-guestbook-status data-tone={status.tone} aria-live="polite">
+          {status.message}
+        </div>
+      ) : null}
       <div className="guestbook-list-wrap">
         <div className="guestbook-list-header">
           <span>Recent signers</span>
@@ -352,33 +355,14 @@ const Guestbook = () => {
               Refresh
             </button>
           </div>
-          <label className="guestbook-field guestbook-admin-field">
-            <span className="guestbook-label">Admin token</span>
-            <input
-              className="guestbook-input guestbook-admin-input"
-              type="password"
-              value={adminToken}
-              onChange={(event) => setAdminToken(event.target.value)}
-              placeholder="Paste admin token"
-              autoComplete="off"
-            />
-          </label>
           <div className="guestbook-actions guestbook-admin-actions">
-            <button
-              className="guestbook-button guestbook-admin-button"
-              type="button"
-              onClick={() => loadAdminEntries()}
-              disabled={!adminToken || isAdminLoading}
-            >
-              Load entries
-            </button>
             <button
               className="guestbook-admin-button ghost"
               type="button"
               onClick={clearAdminToken}
               disabled={isAdminLoading}
             >
-              Clear token
+              Log out
             </button>
           </div>
           <div className="guestbook-status" data-tone={adminStatus.tone} aria-live="polite">
