@@ -13,7 +13,7 @@ const xrStore = createXRStore({
   transientPointer: false,
   gaze: false,
   screenInput: false,
-  optionalFeatures: ["local-floor", "bounded-floor"],
+  optionalFeatures: ["local-floor", "bounded-floor", "dom-overlay"],
 });
 
 export default xrStore;
