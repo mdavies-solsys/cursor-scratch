@@ -222,9 +222,13 @@ Resources:
       VpcId: !Ref Vpc
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
+          FromPort: 3000
+          ToPort: 3000
           SourceSecurityGroupId: !Ref AlbSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 4000
+          ToPort: 4000
+          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -246,7 +250,7 @@ Resources:
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Port: 80
+      Port: 3000
       Protocol: HTTP
       TargetType: ip
       VpcId: !Ref Vpc
@@ -661,7 +665,9 @@ Resources:
           Image: !Sub "${SiteEcrRepository.RepositoryUri}:latest"
           Essential: true
           PortMappings:
-            - ContainerPort: 80
+            - ContainerPort: 3000
+              Protocol: tcp
+            - ContainerPort: 4000
               Protocol: tcp
           LogConfiguration:
             LogDriver: awslogs
@@ -693,7 +699,7 @@ Resources:
             - !Ref PublicSubnetB
       LoadBalancers:
         - ContainerName: app
-          ContainerPort: 80
+          ContainerPort: 3000
           TargetGroupArn: !Ref TargetGroup
 
   CodeBuildRole:
