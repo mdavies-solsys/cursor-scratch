@@ -321,12 +321,12 @@ const FlatControls = ({ onMove, leftAxisRef, rightAxisRef, enablePointerLock }) 
     const mouseDelta = mouseDeltaRef.current;
 
     yawRef.current -= mouseDelta.x * MOUSE_SENSITIVITY;
-    pitchRef.current += mouseDelta.y * MOUSE_SENSITIVITY;
+    pitchRef.current -= mouseDelta.y * MOUSE_SENSITIVITY;
     mouseDeltaRef.current.x = 0;
     mouseDeltaRef.current.y = 0;
 
     yawRef.current -= lookX * LOOK_SPEED * delta;
-    pitchRef.current += lookY * LOOK_SPEED * delta;
+    pitchRef.current -= lookY * LOOK_SPEED * delta;
     pitchRef.current = THREE.MathUtils.clamp(pitchRef.current, -MAX_PITCH, MAX_PITCH);
 
     camera.rotation.set(pitchRef.current, yawRef.current, 0, "YXZ");
