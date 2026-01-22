@@ -22,8 +22,8 @@ After deploy, ensure the `guestbook-api` meta tag in `index.html` points at that
 `https://api.matthewsdavies.com`). Outputs include `GuestbookApiUrl` (custom domain) and `GuestbookApiGatewayUrl`
 (execute-api) for debugging.
 
-New guestbook entries are now stored pending approval to prevent abuse. Admin endpoints are protected by a shared
-phrase stored in Secrets Manager (`GuestbookAdminSecretArn`).
+New guestbook entries are approved by default, but you can still hide or remove them with the admin panel. Admin
+endpoints are protected by a shared phrase stored in Secrets Manager (`GuestbookAdminSecretArn`).
 
 ### Required parameters
 
@@ -59,7 +59,7 @@ or
 ```
 
 2. Deploy the updated stack with `GuestbookAdminSecretArn` set to the secret ARN.
-3. Open the site with `?guestbookAdmin=1`, paste the **phrase**, and approve/hide/remove entries.
+3. Open the site with `?guestbookAdmin=1`, paste the **phrase**, and hide/remove entries as needed.
 
 If you prefer the console, open the DynamoDB table from the stack output (`GuestbookTableName`) and delete or edit
 items with `pk` values like `handle#<xhandle>` (set `approved` to `true` or remove the item).
