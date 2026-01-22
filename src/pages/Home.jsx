@@ -272,8 +272,8 @@ const Home = () => {
               </li>
               <li>
                 <strong>
-                  <a href="https://cusor.sh" target="_blank" rel="noreferrer">
-                    cusor.sh
+                  <a href="https://cursor.sh" target="_blank" rel="noreferrer">
+                    cursor.sh
                   </a>
                 </strong>
                 : an AI-first code editor for rapid iteration.
