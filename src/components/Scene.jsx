@@ -8,8 +8,22 @@ const MAX_SPEED = 3;
 const SYNC_INTERVAL = 50;
 const POSITION_LERP = 10;
 const REMOTE_LERP = 8;
+const AVATAR_HEIGHT = 0.9;
 
 const applyDeadzone = (value) => (Math.abs(value) < DEADZONE ? 0 : value);
+
+const resolveWsUrl = () => {
+  const override = import.meta.env?.VITE_WS_URL;
+  if (override) {
+    return override;
+  }
+  if (typeof window === "undefined") {
+    return "ws://localhost:4000";
+  }
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  const hostname = window.location.hostname || "localhost";
+  return `${protocol}://${hostname}:4000`;
+};
 
 const useMultiplayer = () => {
   const [players, setPlayers] = useState([]);
@@ -19,7 +33,7 @@ const useMultiplayer = () => {
   const lastSentRef = useRef(0);
 
   React.useEffect(() => {
-    const socket = new WebSocket("ws://localhost:4000");
+    const socket = new WebSocket(resolveWsUrl());
     socketRef.current = socket;
 
     socket.addEventListener("message", (event) => {
@@ -163,7 +177,7 @@ const LocalAvatar = ({ color, poseRef }) => {
     if (!meshRef.current || !poseRef.current) {
       return;
     }
-    meshRef.current.position.set(poseRef.current.position.x, 0.9, poseRef.current.position.z);
+    meshRef.current.position.copy(poseRef.current.position);
     meshRef.current.quaternion.copy(poseRef.current.quaternion);
   });
 
@@ -181,7 +195,8 @@ const RemoteAvatar = ({ color, position, rotation }) => {
   const targetQuaternion = useRef(new THREE.Quaternion());
 
   React.useEffect(() => {
-    targetPosition.current.set(position.x, position.y, position.z);
+    const safeY = Number.isFinite(position.y) ? position.y : AVATAR_HEIGHT;
+    targetPosition.current.set(position.x, safeY, position.z);
     targetQuaternion.current.set(rotation.x, rotation.y, rotation.z, rotation.w);
   }, [position, rotation]);
 
@@ -208,6 +223,7 @@ const Scene = ({ store }) => {
     position: new THREE.Vector3(),
     quaternion: new THREE.Quaternion(),
   });
+  const sendPositionRef = useRef(new THREE.Vector3(0, AVATAR_HEIGHT, 0));
 
   const remotePlayers = useMemo(
     () => players.filter((player) => player.id && player.id !== localIdRef.current),
@@ -218,9 +234,10 @@ const Scene = ({ store }) => {
 
   const handleMove = useCallback(
     (position, quaternion) => {
-      localPoseRef.current.position.copy(position);
+      sendPositionRef.current.set(position.x, AVATAR_HEIGHT, position.z);
+      localPoseRef.current.position.copy(sendPositionRef.current);
       localPoseRef.current.quaternion.copy(quaternion);
-      sendMove(position, quaternion);
+      sendMove(sendPositionRef.current, quaternion);
     },
     [sendMove]
   );
@@ -235,7 +252,7 @@ const Scene = ({ store }) => {
             <RemoteAvatar
               key={player.id}
               color={player.color}
-              position={player.position || { x: 0, y: 0.9, z: 0 }}
+              position={player.position || { x: 0, y: AVATAR_HEIGHT, z: 0 }}
               rotation={player.rotation || { x: 0, y: 0, z: 0, w: 1 }}
             />
           ))}

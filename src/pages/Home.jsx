@@ -1,77 +1,79 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
-import anime from "animejs";
+import { animate, createTimeline, stagger } from "animejs";
 import Guestbook from "../components/Guestbook.jsx";
 
 const Home = () => {
   useEffect(() => {
-    const timeline = anime
-      .timeline({
-        easing: "easeOutExpo",
+    const timeline = createTimeline({
+      defaults: {
+        ease: "outExpo",
         duration: 1100,
-      })
-      .add({
-        targets: ".hero-title",
+      },
+    });
+
+    timeline
+      .add(".hero-title", {
         opacity: [0, 1],
         translateY: [24, 0],
       })
       .add(
+        ".hero-lede",
         {
-          targets: ".hero-lede",
           opacity: [0, 1],
           translateY: [18, 0],
         },
         "-=760"
       )
       .add(
+        ".glass",
         {
-          targets: ".glass",
           opacity: [0, 1],
           translateY: [24, 0],
-          delay: anime.stagger(120),
+          delay: stagger(120),
         },
         "-=700"
       )
       .add(
+        ".meta",
         {
-          targets: ".meta",
           opacity: [0, 1],
         },
         "-=800"
       );
 
-    anime({
-      targets: ".orb-1",
+    const orbOne = animate(".orb-1", {
       translateY: [0, 30],
       translateX: [0, -20],
-      easing: "easeInOutSine",
+      ease: "inOutSine",
       duration: 6000,
-      direction: "alternate",
+      alternate: true,
       loop: true,
     });
 
-    anime({
-      targets: ".orb-2",
+    const orbTwo = animate(".orb-2", {
       translateY: [0, -40],
       translateX: [0, 10],
-      easing: "easeInOutSine",
+      ease: "inOutSine",
       duration: 7200,
-      direction: "alternate",
+      alternate: true,
       loop: true,
     });
 
-    anime({
-      targets: ".orb-3",
+    const orbThree = animate(".orb-3", {
       translateY: [0, 20],
       translateX: [0, 30],
-      easing: "easeInOutSine",
+      ease: "inOutSine",
       duration: 8200,
-      direction: "alternate",
+      alternate: true,
       loop: true,
     });
 
     return () => {
-      timeline.pause();
+      timeline.revert();
+      orbOne.revert();
+      orbTwo.revert();
+      orbThree.revert();
     };
   }, []);
 

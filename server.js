@@ -15,6 +15,9 @@ const staticServer = spawn(servePath, ["-s", "dist", "-l", String(HTTP_PORT)], {
 });
 
 const app = express();
+app.get("/health", (_req, res) => {
+  res.status(200).send("ok");
+});
 const wsServer = http.createServer(app);
 const wss = new WebSocketServer({ server: wsServer });
 const players = new Map();

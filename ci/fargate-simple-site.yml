@@ -208,6 +208,10 @@ Resources:
           FromPort: 443
           ToPort: 443
           CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 4000
+          ToPort: 4000
+          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -228,7 +232,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 4000
           ToPort: 4000
-          CidrIp: 0.0.0.0/0
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -259,6 +263,18 @@ Resources:
       Matcher:
         HttpCode: "200-399"
 
+  WsTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 4000
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !Ref Vpc
+      HealthCheckEnabled: true
+      HealthCheckPath: /health
+      Matcher:
+        HttpCode: "200-399"
+
   SiteCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
@@ -286,6 +302,18 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref TargetGroup
+
+  WsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 4000
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref SiteCertificate
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WsTargetGroup
 
   HttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -680,6 +708,7 @@ Resources:
     Type: AWS::ECS::Service
     DependsOn:
       - HttpsListener
+      - WsListener
     Properties:
       ServiceName: !Sub "${AWS::StackName}-service"
       Cluster: !Ref Cluster
@@ -701,6 +730,9 @@ Resources:
         - ContainerName: app
           ContainerPort: 3000
           TargetGroupArn: !Ref TargetGroup
+        - ContainerName: app
+          ContainerPort: 4000
+          TargetGroupArn: !Ref WsTargetGroup
 
   CodeBuildRole:
     Type: AWS::IAM::Role
