@@ -63,11 +63,13 @@ Parameters:
     MinValue: 60
     Description: IP rate-limit window in seconds.
 
-  GuestbookAdminTokenHash:
+  GuestbookAdminSecretArn:
     Type: String
     Default: ""
-    NoEcho: true
-    Description: SHA-256 hash (hex) of the guestbook admin token.
+    Description: ARN of the Secrets Manager secret containing the guestbook admin phrase.
+
+Conditions:
+  HasGuestbookAdminSecretArn: !Not [!Equals [!Ref GuestbookAdminSecretArn, ""]]
 
 Resources:
   ArtifactsBucket:
@@ -412,6 +414,13 @@ Resources:
                   - dynamodb:UpdateItem
                   - dynamodb:Scan
                 Resource: !GetAtt GuestbookTable.Arn
+              - !If
+                - HasGuestbookAdminSecretArn
+                - Effect: Allow
+                  Action:
+                    - secretsmanager:GetSecretValue
+                  Resource: !Ref GuestbookAdminSecretArn
+                - !Ref "AWS::NoValue"
 
   GuestbookFunction:
     Type: AWS::Lambda::Function
@@ -428,11 +437,12 @@ Resources:
           RATE_LIMIT_MAX: !Ref GuestbookRateLimitMax
           RATE_LIMIT_WINDOW_SECONDS: !Ref GuestbookRateLimitWindowSeconds
           ALLOWED_ORIGINS: !Sub "https://${RootDomainName},https://www.${RootDomainName}"
-          ADMIN_TOKEN_HASH: !Ref GuestbookAdminTokenHash
+          ADMIN_SECRET_ARN: !Ref GuestbookAdminSecretArn
       Code:
         ZipFile: |
           const crypto = require("crypto");
           const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+          const { SecretsManagerClient, GetSecretValueCommand } = require("@aws-sdk/client-secrets-manager");
           const {
             DynamoDBDocumentClient,
             DeleteCommand,
@@ -449,11 +459,13 @@ Resources:
             .split(",")
             .map((value) => value.trim())
             .filter(Boolean);
-          const ADMIN_TOKEN_HASH = process.env.ADMIN_TOKEN_HASH || "";
+          const ADMIN_SECRET_ARN = process.env.ADMIN_SECRET_ARN || "";
 
           const client = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
             marshallOptions: { removeUndefinedValues: true },
           });
+          const secretsClient = ADMIN_SECRET_ARN ? new SecretsManagerClient({}) : null;
+          let cachedAdminToken;
 
           const response = (statusCode, body, origin) => {
             const headers = { "content-type": "application/json" };
@@ -500,13 +512,49 @@ Resources:
             return String(alt || "").trim();
           };
 
-          const isAdmin = (event) => {
-            if (!ADMIN_TOKEN_HASH) return false;
+          const extractSecretToken = (value) => {
+            const raw = String(value || "").trim();
+            if (!raw) return "";
+            try {
+              const parsed = JSON.parse(raw);
+              if (parsed && typeof parsed === "object") {
+                const token = parsed.token || parsed.phrase || parsed.adminToken || parsed.value;
+                return String(token || "").trim();
+              }
+              if (typeof parsed === "string") {
+                return parsed.trim();
+              }
+            } catch (error) {
+              // Not JSON, fall back to raw.
+            }
+            return raw;
+          };
+
+          const loadAdminToken = async () => {
+            if (!ADMIN_SECRET_ARN || !secretsClient) return "";
+            if (cachedAdminToken !== undefined) return cachedAdminToken;
+            try {
+              const result = await secretsClient.send(
+                new GetSecretValueCommand({ SecretId: ADMIN_SECRET_ARN })
+              );
+              const secretString =
+                result.SecretString ||
+                (result.SecretBinary ? Buffer.from(result.SecretBinary, "base64").toString("utf8") : "");
+              cachedAdminToken = extractSecretToken(secretString);
+            } catch (error) {
+              console.error("Guestbook admin secret error", error);
+              cachedAdminToken = "";
+            }
+            return cachedAdminToken;
+          };
+
+          const isAdmin = async (event) => {
+            const secretToken = await loadAdminToken();
+            if (!secretToken) return false;
             const token = getAdminToken(event);
             if (!token) return false;
-            const digest = crypto.createHash("sha256").update(token).digest("hex");
-            if (digest.length !== ADMIN_TOKEN_HASH.length) return false;
-            return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(ADMIN_TOKEN_HASH));
+            if (token.length !== secretToken.length) return false;
+            return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(secretToken));
           };
 
           const rateLimit = async (hash, now) => {
@@ -619,7 +667,7 @@ Resources:
                 return response(200, { items, total: items.length }, origin);
               }
               if (method === "GET" && path === "/guestbook/admin") {
-                if (!isAdmin(event)) {
+                if (!(await isAdmin(event))) {
                   return response(401, { error: "Unauthorized" }, origin);
                 }
                 const items = await listEntries({ includePending: true });
@@ -627,7 +675,7 @@ Resources:
                 return response(200, { items, total: items.length, pending }, origin);
               }
               if (path.startsWith("/guestbook/") && path !== "/guestbook" && path !== "/guestbook/admin") {
-                if (!isAdmin(event)) {
+                if (!(await isAdmin(event))) {
                   return response(401, { error: "Unauthorized" }, origin);
                 }
                 const segments = path.split("/").filter(Boolean);

@@ -16,5 +16,6 @@ parameters:
   Memory: "512"
   GuestbookRateLimitMax: 5
   GuestbookRateLimitWindowSeconds: 3600
+  GuestbookAdminSecretArn: ""
 
 

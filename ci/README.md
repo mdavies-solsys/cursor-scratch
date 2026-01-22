@@ -23,7 +23,7 @@ After deploy, ensure the `guestbook-api` meta tag in `index.html` points at that
 (execute-api) for debugging.
 
 New guestbook entries are now stored pending approval to prevent abuse. Admin endpoints are protected by a shared
-token hash (`GuestbookAdminTokenHash`).
+phrase stored in Secrets Manager (`GuestbookAdminSecretArn`).
 
 ### Required parameters
 
@@ -40,20 +40,26 @@ Optional parameters you may want to override:
 - `DesiredCount`, `Cpu`, `Memory`
 - `GuestbookRateLimitMax` (default `5`)
 - `GuestbookRateLimitWindowSeconds` (default `3600`)
-- `GuestbookAdminTokenHash` (default empty, SHA-256 hex of your admin token)
+- `GuestbookAdminSecretArn` (default empty, Secrets Manager ARN with admin phrase)
 
 ### Guestbook moderation (admin)
 
 To approve or remove entries you can either use the AWS console (DynamoDB table) or the built-in admin panel.
 
-1. Generate an admin token hash and update the stack parameter:
+1. Create a Secrets Manager secret that contains your admin phrase. Either store the phrase as plain text or as JSON:
 
-```bash
-printf "your-admin-token" | openssl dgst -sha256
+```
+my easy phrase
 ```
 
-2. Deploy the updated stack with `GuestbookAdminTokenHash` set to the hex hash output.
-3. Open the site with `?guestbookAdmin=1`, paste the **token** (not the hash), and approve/hide/remove entries.
+or
+
+```json
+{"token":"my easy phrase"}
+```
+
+2. Deploy the updated stack with `GuestbookAdminSecretArn` set to the secret ARN.
+3. Open the site with `?guestbookAdmin=1`, paste the **phrase**, and approve/hide/remove entries.
 
 If you prefer the console, open the DynamoDB table from the stack output (`GuestbookTableName`) and delete or edit
 items with `pk` values like `handle#<xhandle>` (set `approved` to `true` or remove the item).
