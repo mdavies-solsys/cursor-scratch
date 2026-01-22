@@ -22,6 +22,9 @@ After deploy, ensure the `guestbook-api` meta tag in `index.html` points at that
 `https://api.matthewsdavies.com`). Outputs include `GuestbookApiUrl` (custom domain) and `GuestbookApiGatewayUrl`
 (execute-api) for debugging.
 
+New guestbook entries are now stored pending approval to prevent abuse. Admin endpoints are protected by a shared
+token hash (`GuestbookAdminTokenHash`).
+
 ### Required parameters
 
 - `HostedZoneId`: Route53 hosted zone id that contains your record
@@ -37,6 +40,23 @@ Optional parameters you may want to override:
 - `DesiredCount`, `Cpu`, `Memory`
 - `GuestbookRateLimitMax` (default `5`)
 - `GuestbookRateLimitWindowSeconds` (default `3600`)
+- `GuestbookAdminTokenHash` (default empty, SHA-256 hex of your admin token)
+
+### Guestbook moderation (admin)
+
+To approve or remove entries you can either use the AWS console (DynamoDB table) or the built-in admin panel.
+
+1. Generate an admin token hash and update the stack parameter:
+
+```bash
+printf "your-admin-token" | openssl dgst -sha256
+```
+
+2. Deploy the updated stack with `GuestbookAdminTokenHash` set to the hex hash output.
+3. Open the site with `?guestbookAdmin=1`, paste the **token** (not the hash), and approve/hide/remove entries.
+
+If you prefer the console, open the DynamoDB table from the stack output (`GuestbookTableName`) and delete or edit
+items with `pk` values like `handle#<xhandle>` (set `approved` to `true` or remove the item).
 
 ### First deploy bootstrap
 
