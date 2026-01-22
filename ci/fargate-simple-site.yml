@@ -410,6 +410,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - dynamodb:GetItem
+                  - dynamodb:DeleteItem
                   - dynamodb:PutItem
                   - dynamodb:UpdateItem
                   - dynamodb:Scan
@@ -748,17 +749,17 @@ Resources:
               const iso = new Date().toISOString();
               const key = { pk: `handle#${handle}`, sk: "profile" };
               let deduped = false;
-              let approved = false;
+              let approved = true;
 
               try {
                 await client.send(
                   new PutCommand({
                     TableName: TABLE_NAME,
-                    Item: { ...key, handle, submittedAt: iso, updatedAt: iso, approved: false },
+                    Item: { ...key, handle, submittedAt: iso, updatedAt: iso, approved: true, approvedAt: iso },
                     ConditionExpression: "attribute_not_exists(pk)",
                   })
                 );
-                approved = false;
+                approved = true;
               } catch (error) {
                 if (error.name !== "ConditionalCheckFailedException") {
                   throw error;
