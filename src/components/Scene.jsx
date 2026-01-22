@@ -15,9 +15,9 @@ const REMOTE_LERP = 8;
 const AVATAR_HEIGHT = 0.9;
 const UP = new THREE.Vector3(0, 1, 0);
 const ZERO_AXIS = { x: 0, y: 0 };
-const HALL_WIDTH = 34;
-const HALL_LENGTH = 90;
-const HALL_HEIGHT = 14;
+const HALL_WIDTH = 44;
+const HALL_LENGTH = 110;
+const HALL_HEIGHT = 16;
 const WALL_THICKNESS = 1.6;
 const FLOOR_THICKNESS = 1.2;
 const CEILING_THICKNESS = 1.1;
@@ -129,7 +129,16 @@ const HeadLight = () => {
     lightRef.current.position.copy(camera.position);
   });
 
-  return <pointLight ref={lightRef} position={[0, 1.6, 0]} intensity={0.25} distance={10} decay={2} />;
+  return (
+    <pointLight
+      ref={lightRef}
+      position={[0, 1.6, 0]}
+      intensity={0.35}
+      distance={14}
+      decay={2}
+      color="#f4d3a8"
+    />
+  );
 };
 
 const createNoiseCanvas = (size, baseColor, accentColor, noiseStrength = 22, veinCount = 18) => {
@@ -437,8 +446,8 @@ const World = () => {
   }, []);
 
   const columnPositions = useMemo(() => {
-    const xs = [-11, -5, 5, 11];
-    const zs = [-30, -18, -6, 6, 18, 30];
+    const xs = [-14, 14];
+    const zs = [-40, -15, 15, 40];
     const positions = [];
     xs.forEach((x) => {
       zs.forEach((z) => {
@@ -448,18 +457,20 @@ const World = () => {
     return positions;
   }, []);
 
-  const ribZPositions = useMemo(() => [-36, -24, -12, 0, 12, 24, 36], []);
-  const beamZPositions = useMemo(() => [-30, -18, -6, 6, 18, 30], []);
-  const lightZPositions = useMemo(() => [-32, -20, -8, 8, 20, 32], []);
+  const ribZPositions = useMemo(() => [-48, -32, -16, 0, 16, 32, 48], []);
+  const beamZPositions = useMemo(() => [-40, -20, 0, 20, 40], []);
+  const lightZPositions = useMemo(() => [-45, -30, -15, 0, 15, 30, 45], []);
+  const sideLightXPositions = useMemo(() => [-12, 12], []);
 
   return (
     <>
-      <fog attach="fog" args={["#050607", 18, 130]} />
-      <ambientLight intensity={0.22} />
-      <hemisphereLight color="#b8c1cc" groundColor="#141518" intensity={0.35} />
+      <fog attach="fog" args={["#0b0a08", 22, 150]} />
+      <ambientLight intensity={0.45} />
+      <hemisphereLight color="#f3d4b3" groundColor="#1a1714" intensity={0.55} />
       <directionalLight
-        position={[16, 20, 12]}
-        intensity={0.7}
+        position={[18, 24, 14]}
+        intensity={0.9}
+        color="#f1d3ad"
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
@@ -473,12 +484,26 @@ const World = () => {
       {lightZPositions.map((z) => (
         <pointLight
           key={`hall-light-${z}`}
-          position={[0, 8.5, z]}
-          intensity={0.55}
-          distance={22}
+          position={[0, 9.6, z]}
+          intensity={0.9}
+          distance={30}
           decay={2}
-          color="#f2d2a2"
+          color="#f6d3a8"
         />
+      ))}
+      {sideLightXPositions.map((x) => (
+        <group key={`side-light-row-${x}`}>
+          {lightZPositions.map((z) => (
+            <pointLight
+              key={`side-light-${x}-${z}`}
+              position={[x, 7.2, z]}
+              intensity={0.45}
+              distance={22}
+              decay={2}
+              color="#f2c89a"
+            />
+          ))}
+        </group>
       ))}
       <HeadLight />
       <group>
@@ -930,7 +955,7 @@ const Scene = ({ store, onSessionChange, onReady, flatControls, xrEnabled = true
         onCreated={handleCreated}
         camera={{ position: [0, 1.6, 3], fov: 60, near: 0.1, far: 200 }}
       >
-        <color attach="background" args={["#050607"]} />
+        <color attach="background" args={["#0b0a08"]} />
         {xrEnabled ? (
           <XR store={store}>
             <World />
