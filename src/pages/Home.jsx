@@ -1,9 +1,11 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { animate, createTimeline, stagger } from "animejs";
 import Guestbook from "../components/Guestbook.jsx";
 
 const Home = () => {
+  const brandNameRef = useRef(null);
+
   useEffect(() => {
     const timeline = createTimeline({
       defaults: {
@@ -77,6 +79,45 @@ const Home = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const target = brandNameRef.current;
+    if (!target) return;
+    let timerId;
+
+    const clearTimer = () => {
+      if (timerId) {
+        window.clearTimeout(timerId);
+        timerId = null;
+      }
+    };
+
+    const requestAdminLogin = () => {
+      clearTimer();
+      window.dispatchEvent(new CustomEvent("guestbook-admin-request"));
+    };
+
+    const startTimer = () => {
+      if (timerId) return;
+      timerId = window.setTimeout(requestAdminLogin, 5000);
+    };
+
+    target.addEventListener("pointerdown", startTimer);
+    target.addEventListener("pointerup", clearTimer);
+    target.addEventListener("pointerleave", clearTimer);
+    target.addEventListener("pointercancel", clearTimer);
+    target.addEventListener("contextmenu", clearTimer);
+
+    return () => {
+      clearTimer();
+      target.removeEventListener("pointerdown", startTimer);
+      target.removeEventListener("pointerup", clearTimer);
+      target.removeEventListener("pointerleave", clearTimer);
+      target.removeEventListener("pointercancel", clearTimer);
+      target.removeEventListener("contextmenu", clearTimer);
+    };
+  }, []);
+
   return (
     <>
       <div className="ambient">
@@ -89,7 +130,9 @@ const Home = () => {
         <header className="site-header">
           <div className="brand">
             <span className="brand-dot"></span>
-            <span>Matt Davies</span>
+            <span className="brand-name" ref={brandNameRef}>
+              Matt Davies
+            </span>
           </div>
           <div className="social-links">
             <a

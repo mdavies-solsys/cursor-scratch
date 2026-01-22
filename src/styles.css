@@ -107,6 +107,13 @@ a {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-size: 0.78rem;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.brand-name {
+  touch-action: manipulation;
 }
 
 .brand-dot {
@@ -396,6 +403,145 @@ code {
   color: var(--muted);
 }
 
+.guestbook-admin {
+  margin-top: 6px;
+  padding-top: 18px;
+  border-top: 1px solid var(--stroke);
+  display: grid;
+  gap: 12px;
+}
+
+.guestbook-admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.guestbook-admin-title {
+  margin: 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.guestbook-admin-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.guestbook-admin-field {
+  margin: 0;
+}
+
+.guestbook-admin-input {
+  background: rgba(9, 11, 26, 0.75);
+}
+
+.guestbook-admin-actions {
+  justify-content: flex-start;
+}
+
+.guestbook-admin-button {
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  background: rgba(9, 11, 26, 0.6);
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.guestbook-admin-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(234, 241, 255, 0.5);
+}
+
+.guestbook-admin-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.guestbook-admin-button.ghost {
+  background: transparent;
+}
+
+.guestbook-admin-button.danger {
+  border-color: rgba(255, 140, 140, 0.6);
+  color: #ffb4b4;
+}
+
+.guestbook-admin-list {
+  display: grid;
+  gap: 10px;
+}
+
+.guestbook-admin-item {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  background: rgba(9, 11, 26, 0.4);
+  display: grid;
+  gap: 10px;
+  align-items: center;
+}
+
+.guestbook-admin-meta {
+  display: grid;
+  gap: 4px;
+}
+
+.guestbook-admin-handle {
+  font-weight: 600;
+}
+
+.guestbook-admin-time {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.guestbook-admin-pill {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  width: fit-content;
+  border: 1px solid transparent;
+}
+
+.guestbook-admin-pill.approved {
+  color: #aafcd9;
+  border-color: rgba(170, 252, 217, 0.4);
+  background: rgba(20, 70, 50, 0.4);
+}
+
+.guestbook-admin-pill.pending {
+  color: #ffd5a6;
+  border-color: rgba(255, 213, 166, 0.4);
+  background: rgba(92, 59, 20, 0.4);
+}
+
+.guestbook-admin-entry-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.guestbook-admin-refresh {
+  justify-self: end;
+}
+
+.guestbook-admin-item .guestbook-admin-entry-actions {
+  justify-content: flex-start;
+}
+
 .guestbook-honeypot {
   position: absolute;
   left: -9999px;
@@ -486,6 +632,15 @@ code {
   position: fixed;
   inset: 0;
   background: #0a0d18;
+}
+
+@media (min-width: 720px) {
+  .guestbook-admin-item {
+    grid-template-columns: 1fr auto auto;
+  }
+  .guestbook-admin-entry-actions {
+    justify-content: flex-end;
+  }
 }
 
 @media (min-width: 900px) {

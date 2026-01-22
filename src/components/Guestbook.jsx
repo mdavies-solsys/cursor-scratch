@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const formatDate = (value) => {
   if (!value) return "";
@@ -8,14 +8,20 @@ const formatDate = (value) => {
 };
 
 const Guestbook = () => {
+  const sectionRef = useRef(null);
   const [items, setItems] = useState([]);
   const [count, setCount] = useState("0");
   const [status, setStatus] = useState({ message: "", tone: "" });
-  const [note, setNote] = useState("Handles must be 1-15 characters.");
+  const [note, setNote] = useState("Handles must be 1-15 characters. Entries appear after approval.");
   const [handle, setHandle] = useState("");
   const [company, setCompany] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDisabled, setIsDisabled] = useState(false);
+  const [adminMode, setAdminMode] = useState(false);
+  const [adminToken, setAdminToken] = useState("");
+  const [adminItems, setAdminItems] = useState([]);
+  const [adminStatus, setAdminStatus] = useState({ message: "", tone: "" });
+  const [isAdminLoading, setIsAdminLoading] = useState(false);
 
   const guestbookEndpoint = useMemo(() => {
     const queryApi = new URLSearchParams(window.location.search).get("guestbookApi");
@@ -26,9 +32,63 @@ const Guestbook = () => {
     return apiBase.endsWith("/guestbook") ? apiBase : `${apiBase}/guestbook`;
   }, []);
 
+  const guestbookAdminEndpoint = useMemo(() => {
+    if (!guestbookEndpoint) return "";
+    return guestbookEndpoint.replace(/\/guestbook$/, "/guestbook/admin");
+  }, [guestbookEndpoint]);
+
   const setStatusMessage = (message, tone) => {
     setStatus({ message: message || "", tone: tone || "" });
   };
+
+  const setAdminStatusMessage = useCallback((message, tone) => {
+    setAdminStatus({ message: message || "", tone: tone || "" });
+  }, []);
+
+  const promptForAdminLogin = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const phrase = window.prompt("Enter the guestbook admin phrase:");
+    const trimmed = String(phrase || "").trim();
+    if (!trimmed) {
+      return;
+    }
+    setAdminToken(trimmed);
+    setAdminMode(true);
+    setAdminStatusMessage("Admin phrase saved on this device.", "success");
+    sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [setAdminStatusMessage]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const savedToken = window.localStorage.getItem("guestbookAdminToken");
+    if (savedToken) {
+      setAdminToken(savedToken);
+      setAdminMode(true);
+      return;
+    }
+    if (params.get("guestbookAdmin") === "1") {
+      promptForAdminLogin();
+    }
+  }, [promptForAdminLogin]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleAdminRequest = () => {
+      promptForAdminLogin();
+    };
+    window.addEventListener("guestbook-admin-request", handleAdminRequest);
+    return () => window.removeEventListener("guestbook-admin-request", handleAdminRequest);
+  }, [promptForAdminLogin]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (adminToken) {
+      window.localStorage.setItem("guestbookAdminToken", adminToken);
+    } else {
+      window.localStorage.removeItem("guestbookAdminToken");
+    }
+  }, [adminToken]);
 
   const loadGuestbook = async () => {
     if (!guestbookEndpoint) {
@@ -58,6 +118,117 @@ const Guestbook = () => {
     loadGuestbook();
   }, [guestbookEndpoint]);
 
+  const loadAdminEntries = useCallback(
+    async ({ silent } = {}) => {
+      if (!guestbookAdminEndpoint) {
+        if (!silent) {
+          setAdminStatusMessage("Guestbook API is not configured yet.", "error");
+        }
+        return;
+      }
+      if (!adminToken) {
+        if (!silent) {
+          setAdminStatusMessage("Add your admin token to load entries.", "error");
+        }
+        return;
+      }
+
+      setIsAdminLoading(true);
+      if (!silent) {
+        setAdminStatusMessage("Loading entries...", "");
+      }
+
+      try {
+        const response = await fetch(guestbookAdminEndpoint, {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || "Unable to load admin entries.");
+        }
+        const nextItems = Array.isArray(data.items) ? data.items : [];
+        setAdminItems(nextItems);
+        if (!silent) {
+          setAdminStatusMessage(`Loaded ${data.total || nextItems.length} entries.`, "success");
+        }
+      } catch (error) {
+        if (!silent) {
+          setAdminStatusMessage(error?.message || "Unable to load admin entries.", "error");
+        }
+      } finally {
+        setIsAdminLoading(false);
+      }
+    },
+    [adminToken, guestbookAdminEndpoint]
+  );
+
+  useEffect(() => {
+    if (!adminMode || !adminToken) return;
+    loadAdminEntries();
+  }, [adminMode, adminToken, loadAdminEntries]);
+
+  const updateEntryApproval = async (entryHandle, approved) => {
+    if (!guestbookEndpoint || !adminToken) return;
+    setIsAdminLoading(true);
+    setAdminStatusMessage(approved ? "Approving entry..." : "Hiding entry...", "");
+    try {
+      const response = await fetch(`${guestbookEndpoint}/${encodeURIComponent(entryHandle)}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ approved }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Unable to update entry.");
+      }
+      await loadAdminEntries({ silent: true });
+      await loadGuestbook();
+      setAdminStatusMessage(approved ? "Entry approved." : "Entry hidden.", "success");
+    } catch (error) {
+      setAdminStatusMessage(error?.message || "Unable to update entry.", "error");
+    } finally {
+      setIsAdminLoading(false);
+    }
+  };
+
+  const deleteEntry = async (entryHandle) => {
+    if (!guestbookEndpoint || !adminToken) return;
+    if (!window.confirm(`Remove @${entryHandle} from the guestbook?`)) {
+      return;
+    }
+    setIsAdminLoading(true);
+    setAdminStatusMessage("Removing entry...", "");
+    try {
+      const response = await fetch(`${guestbookEndpoint}/${encodeURIComponent(entryHandle)}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Unable to remove entry.");
+      }
+      await loadAdminEntries({ silent: true });
+      await loadGuestbook();
+      setAdminStatusMessage("Entry removed.", "success");
+    } catch (error) {
+      setAdminStatusMessage(error?.message || "Unable to remove entry.", "error");
+    } finally {
+      setIsAdminLoading(false);
+    }
+  };
+
+  const clearAdminToken = () => {
+    setAdminToken("");
+    setAdminItems([]);
+    setAdminStatusMessage("Admin token cleared.", "");
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!guestbookEndpoint) return;
@@ -74,7 +245,13 @@ const Guestbook = () => {
       if (!response.ok) {
         throw new Error(data.error || "Unable to submit.");
       }
-      setStatusMessage(data.deduped ? "You are already on the list." : "Added to the guestbook.", "success");
+      if (data.deduped) {
+        setStatusMessage("You are already on the list.", "success");
+      } else if (data.pending || data.approved === false) {
+        setStatusMessage("Thanks! Your entry is pending approval.", "success");
+      } else {
+        setStatusMessage("Added to the guestbook.", "success");
+      }
       setHandle("");
       setCompany("");
       await loadGuestbook();
@@ -85,10 +262,12 @@ const Guestbook = () => {
     }
   };
 
+  const pendingCount = adminItems.filter((item) => item.approved === false).length;
+
   return (
-    <section className="glass guestbook" data-guestbook>
+    <section className="glass guestbook" data-guestbook ref={sectionRef}>
       <h2>Guestbook</h2>
-      <p>Drop your X handle to join the guestbook. No OAuth, no login, just a handle.</p>
+      <p>Drop your X handle to join the guestbook. Entries appear after approval.</p>
       <form className="guestbook-form" data-guestbook-form onSubmit={handleSubmit}>
         <label className="guestbook-field">
           <span className="guestbook-label">X handle</span>
@@ -155,6 +334,96 @@ const Guestbook = () => {
           )}
         </ul>
       </div>
+      {adminMode ? (
+        <div className="guestbook-admin">
+          <div className="guestbook-admin-header">
+            <div>
+              <p className="guestbook-admin-title">Guestbook admin</p>
+              <p className="guestbook-admin-subtitle">
+                {pendingCount ? `${pendingCount} pending` : "No pending entries"}
+              </p>
+            </div>
+            <button
+              className="guestbook-admin-button guestbook-admin-refresh"
+              type="button"
+              onClick={() => loadAdminEntries()}
+              disabled={!adminToken || isAdminLoading}
+            >
+              Refresh
+            </button>
+          </div>
+          <label className="guestbook-field guestbook-admin-field">
+            <span className="guestbook-label">Admin token</span>
+            <input
+              className="guestbook-input guestbook-admin-input"
+              type="password"
+              value={adminToken}
+              onChange={(event) => setAdminToken(event.target.value)}
+              placeholder="Paste admin token"
+              autoComplete="off"
+            />
+          </label>
+          <div className="guestbook-actions guestbook-admin-actions">
+            <button
+              className="guestbook-button guestbook-admin-button"
+              type="button"
+              onClick={() => loadAdminEntries()}
+              disabled={!adminToken || isAdminLoading}
+            >
+              Load entries
+            </button>
+            <button
+              className="guestbook-admin-button ghost"
+              type="button"
+              onClick={clearAdminToken}
+              disabled={isAdminLoading}
+            >
+              Clear token
+            </button>
+          </div>
+          <div className="guestbook-status" data-tone={adminStatus.tone} aria-live="polite">
+            {adminStatus.message}
+          </div>
+          <ul className="guestbook-admin-list">
+            {!adminItems.length ? (
+              <li className="guestbook-empty">No entries yet.</li>
+            ) : (
+              adminItems.map((item) => {
+                const isApproved = item.approved !== false;
+                return (
+                  <li key={`${item.handle}-${item.submittedAt}`} className="guestbook-admin-item">
+                    <div className="guestbook-admin-meta">
+                      <span className="guestbook-admin-handle">@{item.handle}</span>
+                      <span className="guestbook-admin-time">{formatDate(item.submittedAt)}</span>
+                    </div>
+                    <span className={`guestbook-admin-pill ${isApproved ? "approved" : "pending"}`}>
+                      {isApproved ? "Approved" : "Pending"}
+                    </span>
+                    <div className="guestbook-admin-entry-actions">
+                      <button
+                        className="guestbook-admin-button ghost"
+                        type="button"
+                        onClick={() => updateEntryApproval(item.handle, !isApproved)}
+                        disabled={isAdminLoading}
+                      >
+                        {isApproved ? "Hide" : "Approve"}
+                      </button>
+                      <button
+                        className="guestbook-admin-button danger"
+                        type="button"
+                        onClick={() => deleteEntry(item.handle)}
+                        disabled={isAdminLoading}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 };
