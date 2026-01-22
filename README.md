@@ -9,5 +9,9 @@ Personal homepage site for Matt Davies.
 
 ## Local preview
 
-- Open `src/index.html` directly for a quick preview.
-- Build the container with `docker build -t simple-site -f src/Dockerfile src`.
+- Install dependencies with `npm install`.
+- Run the Vite dev server with `npm run dev`.
+- Build the static bundle with `npm run build`.
+- Start the production servers with `npm run start` (HTTP on 3000, WS on 4000).
+
+Build the container with `docker build -t simple-site .`.

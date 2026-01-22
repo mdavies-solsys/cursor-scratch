@@ -208,6 +208,10 @@ Resources:
           FromPort: 443
           ToPort: 443
           CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 4000
+          ToPort: 4000
+          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -222,8 +226,12 @@ Resources:
       VpcId: !Ref Vpc
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
+          FromPort: 3000
+          ToPort: 3000
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 4000
+          ToPort: 4000
           SourceSecurityGroupId: !Ref AlbSecurityGroup
       SecurityGroupEgress:
         - IpProtocol: -1
@@ -246,12 +254,24 @@ Resources:
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Port: 80
+      Port: 3000
       Protocol: HTTP
       TargetType: ip
       VpcId: !Ref Vpc
       HealthCheckEnabled: true
       HealthCheckPath: /
+      Matcher:
+        HttpCode: "200-399"
+
+  WsTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 4000
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !Ref Vpc
+      HealthCheckEnabled: true
+      HealthCheckPath: /health
       Matcher:
         HttpCode: "200-399"
 
@@ -282,6 +302,18 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref TargetGroup
+
+  WsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 4000
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref SiteCertificate
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WsTargetGroup
 
   HttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -661,7 +693,9 @@ Resources:
           Image: !Sub "${SiteEcrRepository.RepositoryUri}:latest"
           Essential: true
           PortMappings:
-            - ContainerPort: 80
+            - ContainerPort: 3000
+              Protocol: tcp
+            - ContainerPort: 4000
               Protocol: tcp
           LogConfiguration:
             LogDriver: awslogs
@@ -674,6 +708,7 @@ Resources:
     Type: AWS::ECS::Service
     DependsOn:
       - HttpsListener
+      - WsListener
     Properties:
       ServiceName: !Sub "${AWS::StackName}-service"
       Cluster: !Ref Cluster
@@ -693,8 +728,11 @@ Resources:
             - !Ref PublicSubnetB
       LoadBalancers:
         - ContainerName: app
-          ContainerPort: 80
+          ContainerPort: 3000
           TargetGroupArn: !Ref TargetGroup
+        - ContainerName: app
+          ContainerPort: 4000
+          TargetGroupArn: !Ref WsTargetGroup
 
   CodeBuildRole:
     Type: AWS::IAM::Role

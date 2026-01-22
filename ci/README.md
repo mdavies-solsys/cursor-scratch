@@ -12,13 +12,13 @@ CloudFormation + CI/CD to deploy the simple static website (`src/`) to **AWS ECS
 
 - `ci/fargate-simple-site.yml`: CloudFormation template
 - `ci/buildspec.yml`: CodeBuild buildspec used by the pipeline
-- `src/Dockerfile`: Container image for the static site
+- `Dockerfile`: Container image for the static site
 
 ### Guestbook API (optional)
 
 The CloudFormation template also provisions a small DynamoDB-backed guestbook API (Lambda + HTTP API) and maps it to
 `https://api.<RootDomainName>` via an API Gateway custom domain.
-After deploy, ensure the `guestbook-api` meta tag in `src/index.html` points at that URL (this repo defaults to
+After deploy, ensure the `guestbook-api` meta tag in `index.html` points at that URL (this repo defaults to
 `https://api.matthewsdavies.com`). Outputs include `GuestbookApiUrl` (custom domain) and `GuestbookApiGatewayUrl`
 (execute-api) for debugging.
 
