@@ -9,6 +9,7 @@ const SYNC_INTERVAL = 50;
 const POSITION_LERP = 10;
 const REMOTE_LERP = 8;
 const AVATAR_HEIGHT = 0.9;
+const UP = new THREE.Vector3(0, 1, 0);
 
 const applyDeadzone = (value) => (Math.abs(value) < DEADZONE ? 0 : value);
 
@@ -29,7 +30,6 @@ const useMultiplayer = () => {
   const [players, setPlayers] = useState([]);
   const socketRef = useRef(null);
   const localIdRef = useRef(null);
-  const localColorRef = useRef(null);
   const lastSentRef = useRef(0);
 
   React.useEffect(() => {
@@ -41,7 +41,6 @@ const useMultiplayer = () => {
         const payload = JSON.parse(event.data);
         if (payload.type === "welcome") {
           localIdRef.current = payload.id;
-          localColorRef.current = payload.color;
           setPlayers(Array.isArray(payload.players) ? payload.players : []);
           return;
         }
@@ -77,7 +76,7 @@ const useMultiplayer = () => {
     );
   }, []);
 
-  return { players, localIdRef, localColorRef, sendMove };
+  return { players, localIdRef, sendMove };
 };
 
 const HeadLight = () => {
@@ -117,6 +116,9 @@ const MovementRig = ({ onMove }) => {
   const baseRefSpace = useRef(null);
   const currentPosition = useRef(new THREE.Vector3());
   const targetPosition = useRef(new THREE.Vector3());
+  const moveDirection = useRef(new THREE.Vector3());
+  const forwardDirection = useRef(new THREE.Vector3());
+  const rightDirection = useRef(new THREE.Vector3());
   const endingRef = useRef(false);
   const controllersRef = useRef({ left: null, right: null });
 
@@ -136,11 +138,24 @@ const MovementRig = ({ onMove }) => {
     const axisX = applyDeadzone(axes[2] ?? 0);
     const axisY = applyDeadzone(axes[3] ?? 0);
 
-    const direction = new THREE.Vector3(axisX, 0, axisY);
-    if (direction.lengthSq() > 1) {
-      direction.normalize();
+    forwardDirection.current.set(0, 0, -1).applyQuaternion(camera.quaternion);
+    forwardDirection.current.y = 0;
+    if (forwardDirection.current.lengthSq() < 0.0001) {
+      forwardDirection.current.set(0, 0, -1);
+    } else {
+      forwardDirection.current.normalize();
     }
-    const velocity = direction.multiplyScalar(MAX_SPEED * delta);
+    rightDirection.current.crossVectors(forwardDirection.current, UP).normalize();
+
+    moveDirection.current
+      .copy(rightDirection.current)
+      .multiplyScalar(axisX)
+      .addScaledVector(forwardDirection.current, -axisY);
+
+    if (moveDirection.current.lengthSq() > 1) {
+      moveDirection.current.normalize();
+    }
+    const velocity = moveDirection.current.multiplyScalar(MAX_SPEED * delta);
     targetPosition.current.add(velocity);
 
     const lerpAlpha = 1 - Math.exp(-delta * POSITION_LERP);
@@ -180,30 +195,6 @@ const MovementRig = ({ onMove }) => {
   return null;
 };
 
-const LocalAvatar = ({ color, poseRef }) => {
-  const meshRef = useRef(null);
-  const fallbackColor = useMemo(() => {
-    const hue = Math.random();
-    return new THREE.Color().setHSL(hue, 0.7, 0.55);
-  }, []);
-  const avatarColor = color ? new THREE.Color(color) : fallbackColor;
-
-  useFrame(() => {
-    if (!meshRef.current || !poseRef.current) {
-      return;
-    }
-    meshRef.current.position.copy(poseRef.current.position);
-    meshRef.current.quaternion.copy(poseRef.current.quaternion);
-  });
-
-  return (
-    <mesh ref={meshRef}>
-      <capsuleGeometry args={[0.25, 1, 4, 8]} />
-      <meshStandardMaterial color={avatarColor} />
-    </mesh>
-  );
-};
-
 const RemoteAvatar = ({ color, position, rotation }) => {
   const meshRef = useRef(null);
   const targetPosition = useRef(new THREE.Vector3());
@@ -233,25 +224,16 @@ const RemoteAvatar = ({ color, position, rotation }) => {
 };
 
 const SessionWorld = () => {
-  const { players, localIdRef, localColorRef, sendMove } = useMultiplayer();
-  const localPoseRef = useRef({
-    position: new THREE.Vector3(),
-    quaternion: new THREE.Quaternion(),
-  });
+  const { players, localIdRef, sendMove } = useMultiplayer();
   const sendPositionRef = useRef(new THREE.Vector3(0, AVATAR_HEIGHT, 0));
 
   const remotePlayers = useMemo(
     () => players.filter((player) => player.id && player.id !== localIdRef.current),
     [players]
   );
-  const localPlayer = players.find((player) => player.id === localIdRef.current);
-  const localColor = localPlayer?.color || localColorRef.current;
-
   const handleMove = useCallback(
     (position, quaternion) => {
       sendPositionRef.current.set(position.x, AVATAR_HEIGHT, position.z);
-      localPoseRef.current.position.copy(sendPositionRef.current);
-      localPoseRef.current.quaternion.copy(quaternion);
       sendMove(sendPositionRef.current, quaternion);
     },
     [sendMove]
@@ -259,7 +241,6 @@ const SessionWorld = () => {
 
   return (
     <>
-      <LocalAvatar color={localColor} poseRef={localPoseRef} />
       {remotePlayers.map((player) => (
         <RemoteAvatar
           key={player.id}
