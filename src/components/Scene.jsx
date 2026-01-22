@@ -97,6 +97,7 @@ const HeadLight = () => {
 const World = () => {
   return (
     <>
+      <ambientLight intensity={0.35} />
       <HeadLight />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
         <planeGeometry args={[50, 50]} />
@@ -258,7 +259,6 @@ const SessionWorld = () => {
 
   return (
     <>
-      <World />
       <LocalAvatar color={localColor} poseRef={localPoseRef} />
       {remotePlayers.map((player) => (
         <RemoteAvatar
@@ -298,8 +298,10 @@ const Scene = ({ store, onSessionChange, onReady }) => {
 
   return (
     <div className="vr-scene">
-      <Canvas onCreated={handleCreated}>
+      <Canvas onCreated={handleCreated} camera={{ position: [0, 1.6, 3], fov: 60 }}>
+        <color attach="background" args={["#0a0d18"]} />
         <XR store={store}>
+          <World />
           <SessionGate onSessionChange={onSessionChange} />
         </XR>
       </Canvas>
