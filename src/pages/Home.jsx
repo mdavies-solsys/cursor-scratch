@@ -92,19 +92,14 @@ const Home = () => {
       }
     };
 
-    const enableAdmin = () => {
+    const requestAdminLogin = () => {
       clearTimer();
-      try {
-        window.localStorage.setItem("guestbookAdmin", "1");
-      } catch (error) {
-        // Local storage unavailable.
-      }
-      window.dispatchEvent(new CustomEvent("guestbook-admin-enable"));
+      window.dispatchEvent(new CustomEvent("guestbook-admin-request"));
     };
 
     const startTimer = () => {
       if (timerId) return;
-      timerId = window.setTimeout(enableAdmin, 5000);
+      timerId = window.setTimeout(requestAdminLogin, 5000);
     };
 
     target.addEventListener("pointerdown", startTimer);

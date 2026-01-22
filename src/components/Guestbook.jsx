@@ -41,50 +41,54 @@ const Guestbook = () => {
     setStatus({ message: message || "", tone: tone || "" });
   };
 
-  const setAdminStatusMessage = (message, tone) => {
+  const setAdminStatusMessage = useCallback((message, tone) => {
     setAdminStatus({ message: message || "", tone: tone || "" });
-  };
+  }, []);
+
+  const promptForAdminLogin = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const phrase = window.prompt("Enter the guestbook admin phrase:");
+    const trimmed = String(phrase || "").trim();
+    if (!trimmed) {
+      return;
+    }
+    setAdminToken(trimmed);
+    setAdminMode(true);
+    setAdminStatusMessage("Admin phrase saved on this device.", "success");
+    sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [setAdminStatusMessage]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const enabled = params.get("guestbookAdmin") === "1";
-    if (enabled) {
-      window.localStorage.setItem("guestbookAdmin", "1");
-      setAdminMode(true);
-    } else if (window.localStorage.getItem("guestbookAdmin") === "1") {
-      setAdminMode(true);
-    }
     const savedToken = window.localStorage.getItem("guestbookAdminToken");
     if (savedToken) {
       setAdminToken(savedToken);
+      setAdminMode(true);
+      return;
     }
-  }, []);
+    if (params.get("guestbookAdmin") === "1") {
+      promptForAdminLogin();
+    }
+  }, [promptForAdminLogin]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const handleAdminEnable = () => {
-      try {
-        window.localStorage.setItem("guestbookAdmin", "1");
-      } catch (error) {
-        // Local storage unavailable.
-      }
-      setAdminMode(true);
-      setAdminStatusMessage("Admin mode enabled.", "success");
-      sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const handleAdminRequest = () => {
+      promptForAdminLogin();
     };
-    window.addEventListener("guestbook-admin-enable", handleAdminEnable);
-    return () => window.removeEventListener("guestbook-admin-enable", handleAdminEnable);
-  }, []);
+    window.addEventListener("guestbook-admin-request", handleAdminRequest);
+    return () => window.removeEventListener("guestbook-admin-request", handleAdminRequest);
+  }, [promptForAdminLogin]);
 
   useEffect(() => {
-    if (!adminMode || typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
     if (adminToken) {
       window.localStorage.setItem("guestbookAdminToken", adminToken);
     } else {
       window.localStorage.removeItem("guestbookAdminToken");
     }
-  }, [adminMode, adminToken]);
+  }, [adminToken]);
 
   const loadGuestbook = async () => {
     if (!guestbookEndpoint) {
