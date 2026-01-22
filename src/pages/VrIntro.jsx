@@ -4,13 +4,33 @@ import xrStore from "../xrStore.jsx";
 
 const VrIntro = () => {
   const [xrSupported, setXrSupported] = useState(false);
+  const [xrChecking, setXrChecking] = useState(true);
+  const [xrError, setXrError] = useState("");
   const [session, setSession] = useState(null);
   const [isRequesting, setIsRequesting] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
+  const [sessionEnded, setSessionEnded] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
-    if (navigator?.xr?.isSessionSupported) {
+    const checkSupport = () => {
+      if (!navigator?.xr?.isSessionSupported) {
+        if (isMounted) {
+          setXrSupported(false);
+          setXrChecking(false);
+        }
+        return;
+      }
+      if (typeof window !== "undefined" && !window.isSecureContext) {
+        if (isMounted) {
+          setXrSupported(false);
+          setXrChecking(false);
+          setXrError("WebXR requires HTTPS. Open this page on a secure origin.");
+        }
+        return;
+      }
+      setXrChecking(true);
+      setXrError("");
       navigator.xr
         .isSessionSupported("immersive-vr")
         .then((supported) => {
@@ -22,22 +42,59 @@ const VrIntro = () => {
           if (isMounted) {
             setXrSupported(false);
           }
+        })
+        .finally(() => {
+          if (isMounted) {
+            setXrChecking(false);
+          }
         });
-    }
+    };
+
+    checkSupport();
+    navigator?.xr?.addEventListener?.("devicechange", checkSupport);
     return () => {
       isMounted = false;
+      navigator?.xr?.removeEventListener?.("devicechange", checkSupport);
     };
   }, []);
 
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+    setSessionEnded(false);
+    const handleEnd = () => {
+      setSessionEnded(true);
+    };
+    const handleVisibility = () => {
+      if (session.visibilityState === "hidden") {
+        setSessionEnded(true);
+      }
+    };
+    session.addEventListener("end", handleEnd);
+    session.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      session.removeEventListener("end", handleEnd);
+      session.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [session]);
+
   const handleEnter = async () => {
-    if (!navigator?.xr || isRequesting || session || !sceneReady) {
+    if (!navigator?.xr || !xrSupported || isRequesting || session || !sceneReady) {
       return;
     }
     setIsRequesting(true);
+    setXrError("");
+    setSessionEnded(false);
     try {
       await xrStore.enterXR("immersive-vr");
     } catch (error) {
       console.error("Unable to enter VR session", error);
+      const message =
+        error?.name === "NotAllowedError"
+          ? "VR entry was cancelled. Accept the headset prompt to continue."
+          : "Unable to enter VR session. Please reload and try again.";
+      setXrError(message);
     } finally {
       setIsRequesting(false);
     }
@@ -45,6 +102,15 @@ const VrIntro = () => {
 
   const shouldRenderScene = xrSupported || session;
   const buttonLabel = isRequesting ? "Entering..." : sceneReady ? "Enter VR" : "Preparing VR...";
+  const noticeMessage = xrError
+    ? xrError
+    : sessionEnded
+    ? "VR session ended. Tap Enter VR to try again."
+    : xrChecking
+    ? "Checking for VR headset..."
+    : !xrSupported
+    ? "VR headset required."
+    : "";
 
   return (
     <>
@@ -65,9 +131,8 @@ const VrIntro = () => {
               >
                 {buttonLabel}
               </button>
-            ) : (
-              <span className="vr-intro__notice">VR headset required.</span>
-            )}
+            ) : null}
+            {noticeMessage ? <span className="vr-intro__notice">{noticeMessage}</span> : null}
           </div>
         </div>
       )}
