@@ -133,8 +133,8 @@ const HeadLight = () => {
     <pointLight
       ref={lightRef}
       position={[0, 1.6, 0]}
-      intensity={0.35}
-      distance={14}
+      intensity={0.6}
+      distance={18}
       decay={2}
       color="#f4d3a8"
     />
@@ -461,16 +461,18 @@ const World = () => {
   const beamZPositions = useMemo(() => [-40, -20, 0, 20, 40], []);
   const lightZPositions = useMemo(() => [-45, -30, -15, 0, 15, 30, 45], []);
   const sideLightXPositions = useMemo(() => [-12, 12], []);
+  const floorLightZPositions = useMemo(() => [-40, -20, 0, 20, 40], []);
+  const floorLightXPositions = useMemo(() => [-16, 16], []);
 
   return (
     <>
-      <fog attach="fog" args={["#0b0a08", 22, 150]} />
-      <ambientLight intensity={0.45} />
-      <hemisphereLight color="#f3d4b3" groundColor="#1a1714" intensity={0.55} />
+      <fog attach="fog" args={["#15110e", 28, 170]} />
+      <ambientLight intensity={0.7} />
+      <hemisphereLight color="#f7e1c7" groundColor="#2c2521" intensity={0.85} />
       <directionalLight
         position={[18, 24, 14]}
-        intensity={0.9}
-        color="#f1d3ad"
+        intensity={1.2}
+        color="#f6d8b6"
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
@@ -485,8 +487,8 @@ const World = () => {
         <pointLight
           key={`hall-light-${z}`}
           position={[0, 9.6, z]}
-          intensity={0.9}
-          distance={30}
+          intensity={1.35}
+          distance={34}
           decay={2}
           color="#f6d3a8"
         />
@@ -497,10 +499,24 @@ const World = () => {
             <pointLight
               key={`side-light-${x}-${z}`}
               position={[x, 7.2, z]}
-              intensity={0.45}
-              distance={22}
+              intensity={0.75}
+              distance={26}
               decay={2}
               color="#f2c89a"
+            />
+          ))}
+        </group>
+      ))}
+      {floorLightXPositions.map((x) => (
+        <group key={`floor-light-row-${x}`}>
+          {floorLightZPositions.map((z) => (
+            <pointLight
+              key={`floor-light-${x}-${z}`}
+              position={[x, 2.6, z]}
+              intensity={0.55}
+              distance={18}
+              decay={2}
+              color="#f7dcbc"
             />
           ))}
         </group>
@@ -955,7 +971,7 @@ const Scene = ({ store, onSessionChange, onReady, flatControls, xrEnabled = true
         onCreated={handleCreated}
         camera={{ position: [0, 1.6, 3], fov: 60, near: 0.1, far: 200 }}
       >
-        <color attach="background" args={["#0b0a08"]} />
+        <color attach="background" args={["#15110e"]} />
         {xrEnabled ? (
           <XR store={store}>
             <World />
