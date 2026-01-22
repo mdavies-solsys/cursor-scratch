@@ -11,11 +11,6 @@ const VrIntro = () => {
   const [isRequesting, setIsRequesting] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
   const [sessionEnded, setSessionEnded] = useState(false);
-  const [inputSourcesCount, setInputSourcesCount] = useState(0);
-  const [sessionVisibility, setSessionVisibility] = useState("");
-  const [sessionBlendMode, setSessionBlendMode] = useState("");
-  const [sessionInteractionMode, setSessionInteractionMode] = useState("");
-  const diagnosticsRootRef = useRef(null);
   const leftAxisRef = useRef({ x: 0, y: 0 });
   const rightAxisRef = useRef({ x: 0, y: 0 });
   const [entered, setEntered] = useState(false);
@@ -73,36 +68,22 @@ const VrIntro = () => {
 
   useEffect(() => {
     if (!session) {
-      setInputSourcesCount(0);
-      setSessionVisibility("");
-      setSessionBlendMode("");
-      setSessionInteractionMode("");
       return;
     }
     setSessionEnded(false);
-    setInputSourcesCount(session.inputSources?.length ?? 0);
-    setSessionVisibility(session.visibilityState || "");
-    setSessionBlendMode(session.environmentBlendMode || "");
-    setSessionInteractionMode(session.interactionMode || "");
     const handleEnd = () => {
       setSessionEnded(true);
     };
     const handleVisibility = () => {
-      setSessionVisibility(session.visibilityState || "");
       if (session.visibilityState === "hidden") {
         setSessionEnded(true);
       }
     };
-    const handleInputSources = () => {
-      setInputSourcesCount(session.inputSources?.length ?? 0);
-    };
     session.addEventListener("end", handleEnd);
     session.addEventListener("visibilitychange", handleVisibility);
-    session.addEventListener("inputsourceschange", handleInputSources);
     return () => {
       session.removeEventListener("end", handleEnd);
       session.removeEventListener("visibilitychange", handleVisibility);
-      session.removeEventListener("inputsourceschange", handleInputSources);
     };
   }, [session]);
 
@@ -117,14 +98,7 @@ const VrIntro = () => {
     setXrError("");
     setSessionEnded(false);
     try {
-      const overlayRoot = diagnosticsRootRef.current;
-      const sessionInit = overlayRoot
-        ? {
-            optionalFeatures: ["local-floor", "bounded-floor", "dom-overlay"],
-            domOverlay: { root: overlayRoot },
-          }
-        : undefined;
-      await xrStore.enterXR("immersive-vr", sessionInit);
+      await xrStore.enterXR("immersive-vr");
     } catch (error) {
       console.error("Unable to enter VR session", error);
       const message =
@@ -156,9 +130,6 @@ const VrIntro = () => {
     : xrChecking
     ? "Checking for VR headset..."
     : "";
-  const secureContext = typeof window !== "undefined" ? window.isSecureContext : false;
-  const pageVisibility = typeof document !== "undefined" ? document.visibilityState : "unknown";
-
   return (
     <>
       <Scene
@@ -205,57 +176,6 @@ const VrIntro = () => {
         </div>
       )}
       <TouchControls leftAxisRef={leftAxisRef} rightAxisRef={rightAxisRef} visible={showTouchControls} />
-      <div className="vr-diagnostics-root" ref={diagnosticsRootRef}>
-        <div className="vr-diagnostics">
-          <div className="vr-diagnostics__title">VR Diagnostics</div>
-          <dl className="vr-diagnostics__list">
-            <div className="vr-diagnostics__row">
-              <dt>Secure Context</dt>
-              <dd>{secureContext ? "yes" : "no"}</dd>
-            </div>
-            <div className="vr-diagnostics__row">
-              <dt>XR Support</dt>
-              <dd>{xrChecking ? "checking" : xrSupported ? "yes" : "no"}</dd>
-            </div>
-            <div className="vr-diagnostics__row">
-              <dt>Scene Ready</dt>
-              <dd>{sceneReady ? "yes" : "no"}</dd>
-            </div>
-            <div className="vr-diagnostics__row">
-              <dt>Requesting</dt>
-              <dd>{isRequesting ? "yes" : "no"}</dd>
-            </div>
-            <div className="vr-diagnostics__row">
-              <dt>Session</dt>
-              <dd>{session ? "active" : "none"}</dd>
-            </div>
-            <div className="vr-diagnostics__row">
-              <dt>Session Visibility</dt>
-              <dd>{sessionVisibility || "n/a"}</dd>
-            </div>
-            <div className="vr-diagnostics__row">
-              <dt>Input Sources</dt>
-              <dd>{session ? inputSourcesCount : "n/a"}</dd>
-            </div>
-            <div className="vr-diagnostics__row">
-              <dt>Blend Mode</dt>
-              <dd>{sessionBlendMode || "n/a"}</dd>
-            </div>
-            <div className="vr-diagnostics__row">
-              <dt>Interaction</dt>
-              <dd>{sessionInteractionMode || "n/a"}</dd>
-            </div>
-            <div className="vr-diagnostics__row">
-              <dt>Page Visibility</dt>
-              <dd>{pageVisibility}</dd>
-            </div>
-            <div className="vr-diagnostics__row">
-              <dt>Last Error</dt>
-              <dd>{xrError || "none"}</dd>
-            </div>
-          </dl>
-        </div>
-      </div>
     </>
   );
 };
