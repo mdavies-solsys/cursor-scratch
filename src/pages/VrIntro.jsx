@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Scene from "../components/Scene.jsx";
+import TouchControls from "../components/TouchControls.jsx";
 import xrStore from "../xrStore.jsx";
 
 const VrIntro = () => {
@@ -15,6 +16,13 @@ const VrIntro = () => {
   const [sessionBlendMode, setSessionBlendMode] = useState("");
   const [sessionInteractionMode, setSessionInteractionMode] = useState("");
   const diagnosticsRootRef = useRef(null);
+  const leftAxisRef = useRef({ x: 0, y: 0 });
+  const rightAxisRef = useRef({ x: 0, y: 0 });
+  const [entered, setEntered] = useState(false);
+  const xrAvailable = typeof navigator !== "undefined" && Boolean(navigator.xr);
+  const isTouchDevice =
+    typeof window !== "undefined" &&
+    (navigator.maxTouchPoints > 0 || window.matchMedia?.("(pointer: coarse)")?.matches);
 
   useEffect(() => {
     let isMounted = true;
@@ -30,7 +38,7 @@ const VrIntro = () => {
         if (isMounted) {
           setXrSupported(false);
           setXrChecking(false);
-          setXrError("WebXR requires HTTPS. Open this page on a secure origin.");
+          setXrError("WebXR requires HTTPS. Non-VR entry still works on insecure origins.");
         }
         return;
       }
@@ -100,6 +108,9 @@ const VrIntro = () => {
 
   const handleEnter = async () => {
     if (!navigator?.xr || !xrSupported || isRequesting || session || !sceneReady) {
+      if (!xrSupported && !isRequesting && !session && sceneReady) {
+        setEntered(true);
+      }
       return;
     }
     setIsRequesting(true);
@@ -126,30 +137,55 @@ const VrIntro = () => {
     }
   };
 
-  const shouldRenderScene = xrSupported || session;
-  const buttonLabel = isRequesting ? "Entering..." : sceneReady ? "Enter VR" : "Preparing VR...";
+  const flatActive = entered && !session;
+  const flatControls = useMemo(
+    () => ({
+      active: flatActive,
+      leftAxisRef,
+      rightAxisRef,
+      enablePointerLock: !isTouchDevice,
+    }),
+    [flatActive, isTouchDevice, leftAxisRef, rightAxisRef]
+  );
+  const showTouchControls = flatActive && isTouchDevice;
+  const buttonLabel = isRequesting ? "Entering..." : sceneReady ? "Enter Matt’s World" : "Preparing world...";
   const noticeMessage = xrError
     ? xrError
     : sessionEnded
-    ? "VR session ended. Tap Enter VR to try again."
+    ? "VR session ended. Tap Enter Matt’s World to try again."
     : xrChecking
     ? "Checking for VR headset..."
-    : !xrSupported
-    ? "VR headset required."
     : "";
   const secureContext = typeof window !== "undefined" ? window.isSecureContext : false;
   const pageVisibility = typeof document !== "undefined" ? document.visibilityState : "unknown";
 
   return (
     <>
-      {shouldRenderScene ? (
-        <Scene store={xrStore} onSessionChange={setSession} onReady={() => setSceneReady(true)} />
-      ) : null}
-      {!session && (
+      <Scene
+        store={xrStore}
+        onSessionChange={setSession}
+        onReady={() => setSceneReady(true)}
+        flatControls={flatControls}
+        xrEnabled={xrAvailable}
+      />
+      {!session && !entered && (
         <div className="vr-intro">
           <div className="vr-intro__content">
             <h1 className="vr-intro__title">Matt’s World</h1>
-            <p className="vr-intro__text">A quiet space. No rules. Just move and see who’s around.</p>
+            <p className="vr-intro__text">
+              Step into the same world from VR headsets, desktop browsers, mobile screens, and Steam Deck.
+            </p>
+            <ul className="vr-intro__controls">
+              <li>
+                <strong>VR:</strong> headset + controllers.
+              </li>
+              <li>
+                <strong>Desktop:</strong> WASD + mouse look.
+              </li>
+              <li>
+                <strong>Mobile & Steam Deck:</strong> dual analog sticks.
+              </li>
+            </ul>
             {xrSupported || session ? (
               <button
                 className="vr-intro__button"
@@ -159,11 +195,16 @@ const VrIntro = () => {
               >
                 {buttonLabel}
               </button>
-            ) : null}
+            ) : (
+              <button className="vr-intro__button" type="button" onClick={() => setEntered(true)} disabled={!sceneReady}>
+                {buttonLabel}
+              </button>
+            )}
             {noticeMessage ? <span className="vr-intro__notice">{noticeMessage}</span> : null}
           </div>
         </div>
       )}
+      <TouchControls leftAxisRef={leftAxisRef} rightAxisRef={rightAxisRef} visible={showTouchControls} />
       <div className="vr-diagnostics-root" ref={diagnosticsRootRef}>
         <div className="vr-diagnostics">
           <div className="vr-diagnostics__title">VR Diagnostics</div>

@@ -193,15 +193,14 @@ const Home = () => {
           </section>
           <section className="glass experience">
             <div>
-              <h2>Experimenting with game-like experiences</h2>
+              <h2>Entering Matt’s world</h2>
               <p>
-                I’m exploring playful, game-inspired spaces on the web, including a lightweight VR world you can step into
-                today.
+                Step into the same world from VR headsets, desktop browsers, mobile screens, and even the Steam Deck.
               </p>
             </div>
             <div className="experience__actions">
               <Link className="guestbook-button" to="/vr-intro">
-                Visit the VR experience
+                Enter Matt’s world
               </Link>
             </div>
           </section>

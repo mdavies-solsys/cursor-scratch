@@ -609,6 +609,25 @@ code {
   color: rgba(255, 255, 255, 0.7);
 }
 
+.vr-intro__controls {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.vr-intro__controls li {
+  padding-left: 0;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.vr-intro__controls li::before {
+  display: none;
+}
+
 .vr-intro__button {
   border: none;
   border-radius: 999px;
@@ -693,6 +712,63 @@ code {
 .vr-diagnostics__row dd {
   color: #ffffff;
   text-align: right;
+}
+
+.touch-controls {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.touch-joystick {
+  position: absolute;
+  bottom: 20px;
+  width: 132px;
+  height: 132px;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+}
+
+.touch-joystick--left {
+  left: 18px;
+}
+
+.touch-joystick--right {
+  right: 18px;
+}
+
+.touch-joystick__base {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+}
+
+.touch-joystick__knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.25);
+}
+
+.touch-joystick__label {
+  position: absolute;
+  bottom: -20px;
+  width: 100%;
+  text-align: center;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(234, 241, 255, 0.65);
 }
 
 @media (min-width: 720px) {
