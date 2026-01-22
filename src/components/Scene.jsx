@@ -231,7 +231,7 @@ const RemoteAvatar = ({ color, position, rotation }) => {
   );
 };
 
-const Scene = ({ store }) => {
+const SessionWorld = () => {
   const { players, localIdRef, localColorRef, sendMove } = useMultiplayer();
   const localPoseRef = useRef({
     position: new THREE.Vector3(),
@@ -257,20 +257,50 @@ const Scene = ({ store }) => {
   );
 
   return (
+    <>
+      <World />
+      <LocalAvatar color={localColor} poseRef={localPoseRef} />
+      {remotePlayers.map((player) => (
+        <RemoteAvatar
+          key={player.id}
+          color={player.color}
+          position={player.position || { x: 0, y: AVATAR_HEIGHT, z: 0 }}
+          rotation={player.rotation || { x: 0, y: 0, z: 0, w: 1 }}
+        />
+      ))}
+      <MovementRig onMove={handleMove} />
+    </>
+  );
+};
+
+const SessionGate = ({ onSessionChange }) => {
+  const session = useXR((state) => state.session);
+
+  React.useEffect(() => {
+    if (onSessionChange) {
+      onSessionChange(session ?? null);
+    }
+  }, [onSessionChange, session]);
+
+  if (!session) {
+    return null;
+  }
+
+  return <SessionWorld />;
+};
+
+const Scene = ({ store, onSessionChange, onReady }) => {
+  const handleCreated = useCallback(() => {
+    if (onReady) {
+      onReady();
+    }
+  }, [onReady]);
+
+  return (
     <div className="vr-scene">
-      <Canvas>
+      <Canvas onCreated={handleCreated}>
         <XR store={store}>
-          <World />
-          <LocalAvatar color={localColor} poseRef={localPoseRef} />
-          {remotePlayers.map((player) => (
-            <RemoteAvatar
-              key={player.id}
-              color={player.color}
-              position={player.position || { x: 0, y: AVATAR_HEIGHT, z: 0 }}
-              rotation={player.rotation || { x: 0, y: 0, z: 0, w: 1 }}
-            />
-          ))}
-          <MovementRig onMove={handleMove} />
+          <SessionGate onSessionChange={onSessionChange} />
         </XR>
       </Canvas>
     </div>
