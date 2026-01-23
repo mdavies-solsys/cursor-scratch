@@ -10,6 +10,7 @@ const App = () => {
       <Route path="/" element={<Home />} />
       <Route path="/mobile-build" element={<MobileBuild />} />
       <Route path="/game" element={<VrIntro />} />
+      <Route path="/vr-intro" element={<VrIntro />} />
       <Route path="*" element={<Home />} />
     </Routes>
   );

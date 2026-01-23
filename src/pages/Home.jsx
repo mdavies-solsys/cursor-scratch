@@ -199,7 +199,7 @@ const Home = () => {
               </p>
             </div>
             <div className="experience__actions">
-              <Link className="guestbook-button" to="/vr-intro">
+              <Link className="guestbook-button" to="/game">
                 Enter Matt’s world
               </Link>
             </div>
