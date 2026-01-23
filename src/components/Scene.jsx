@@ -221,6 +221,7 @@ const createTexturedMaterial = ({
   grainBase = 140,
   grainVariance = 70,
   textureSize = 512,  // Higher resolution for better quality
+  useRoughnessMap = true,  // Set to false for uniformly matte surfaces
 }) => {
   if (typeof document === "undefined") {
     return new THREE.MeshStandardMaterial({ color: baseColor, roughness, metalness });
@@ -229,23 +230,31 @@ const createTexturedMaterial = ({
   const diffuseCanvas = createNoiseCanvas(textureSize, baseColor, accentColor, noiseStrength, veinCount);
   const grainCanvas = createGrainCanvas(textureSize, grainBase, grainVariance);
   const map = buildCanvasTexture(diffuseCanvas, repeat, true);
-  const roughnessMap = buildCanvasTexture(grainCanvas, repeat, false);
   const bumpMap = buildCanvasTexture(grainCanvas, repeat, false);
   
   // B2: Reduced anisotropy from 16 to 8 for performance (subtle visual impact at oblique angles)
   map.anisotropy = 8;
-  roughnessMap.anisotropy = 8;
   bumpMap.anisotropy = 8;
 
-  return new THREE.MeshStandardMaterial({
+  // Only create roughnessMap if enabled - roughnessMap multiplies with roughness property,
+  // so even roughness=1.0 becomes shiny if roughnessMap has dark values (avg ~110/255 = 0.43)
+  // For true matte surfaces, disable roughnessMap to use roughness property directly
+  const materialConfig = {
     color: baseColor,
     map,
-    roughnessMap,
     bumpMap,
     bumpScale,
     roughness,
     metalness,
-  });
+  };
+
+  if (useRoughnessMap) {
+    const roughnessMap = buildCanvasTexture(grainCanvas, repeat, false);
+    roughnessMap.anisotropy = 8;
+    materialConfig.roughnessMap = roughnessMap;
+  }
+
+  return new THREE.MeshStandardMaterial(materialConfig);
 };
 
 // Calculate texture repeats based on room dimensions for consistent tile size
@@ -736,6 +745,9 @@ const World = () => {
       textureSize: 512,
     });
     // Floor material - dirt/earth floor with no reflection at all
+    // FIXED: useRoughnessMap=false prevents the roughnessMap from overriding roughness=1.0
+    // The previous bug: roughnessMap values (~110/255 = 0.43 avg) multiplied with roughness,
+    // so even roughness=1.0 resulted in effective roughness of ~0.43 (shiny)
     const stoneDark = createTexturedMaterial({
       baseColor: "#3d3830",  // Earthy brown-gray for dirt
       accentColor: "#2e2a24",  // Darker earth tones
@@ -748,6 +760,7 @@ const World = () => {
       grainBase: 110,
       grainVariance: 120,  // High variance for patchy dirt
       textureSize: 512,
+      useRoughnessMap: false,  // CRITICAL: Disable roughnessMap to get true matte surface
     });
     // Trim material - aged architectural detail
     const stoneTrim = createTexturedMaterial({
