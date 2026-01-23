@@ -291,20 +291,22 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
   const count = positions.length;
   
   // Pre-create geometries - SQUARE cathedral columns
-  // Profile: Wide plinth -> base molding -> narrower shaft -> capital -> wide abacus
+  // Profile: Wide plinth -> base molding -> MUCH narrower shaft -> capital -> wide abacus
+  // Classical column proportions: shaft is ~60% of base width for dramatic silhouette
   const geometries = useMemo(() => ({
     // Plinth (base) - widest at bottom for stability
     base: new THREE.BoxGeometry(SCALE(11.6), COLUMN_BASE_HEIGHT, SCALE(11.6)),
     // Base molding - transition between plinth and shaft
-    ring: new THREE.BoxGeometry(SCALE(10.4), COLUMN_RING_HEIGHT, SCALE(10.4)),
-    // Main shaft - narrower than base and capital for cathedral silhouette
-    shaft: new THREE.BoxGeometry(SCALE(9.2), COLUMN_SHAFT_HEIGHT, SCALE(9.2)),
-    // Capital - widens from shaft
-    cap: new THREE.BoxGeometry(SCALE(10.4), COLUMN_CAP_HEIGHT, SCALE(10.4)),
+    ring: new THREE.BoxGeometry(SCALE(9.0), COLUMN_RING_HEIGHT, SCALE(9.0)),
+    // Main shaft - significantly narrower than base and capital for classical cathedral silhouette
+    // At 7.0 vs 11.6, the shaft is about 60% of base width - creates visible tapering
+    shaft: new THREE.BoxGeometry(SCALE(7.0), COLUMN_SHAFT_HEIGHT, SCALE(7.0)),
+    // Capital - widens dramatically from shaft back toward base width
+    cap: new THREE.BoxGeometry(SCALE(9.0), COLUMN_CAP_HEIGHT, SCALE(9.0)),
     // Abacus (top) - widest at top to support ceiling structure
     top: new THREE.BoxGeometry(SCALE(11.6), COLUMN_TOP_HEIGHT, SCALE(11.6)),
-    // Square trim bands instead of circular detail rings
-    detailRing: new THREE.BoxGeometry(SCALE(9.6), SCALE(0.15), SCALE(9.6)),
+    // Square trim bands sized to match shaft width
+    detailRing: new THREE.BoxGeometry(SCALE(7.4), SCALE(0.15), SCALE(7.4)),
   }), []);
 
   // Generate random imperfections per column (seeded by position for consistency)
