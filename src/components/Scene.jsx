@@ -20,7 +20,7 @@ const SCALE = (value) => value * HALL_SCALE;
 // Room dimensions - 5x wider and longer than original
 const HALL_WIDTH = SCALE(44 * 5);  // 5x original width
 const HALL_LENGTH = SCALE(110 * 5);  // 5x original length
-const HALL_HEIGHT = SCALE(16);
+const HALL_HEIGHT = SCALE(32);
 // Render distance based on largest room dimension
 const MAX_ROOM_DIMENSION = Math.max(HALL_WIDTH, HALL_LENGTH, HALL_HEIGHT);
 const RENDER_DISTANCE = MAX_ROOM_DIMENSION * 1.5;
@@ -776,9 +776,6 @@ const World = () => {
       <group>
         <mesh position={[0, -FLOOR_THICKNESS / 2, 0]} receiveShadow material={materials.stoneDark}>
           <boxGeometry args={[HALL_WIDTH + SCALE(6), FLOOR_THICKNESS, HALL_LENGTH + SCALE(6)]} />
-        </mesh>
-        <mesh position={[0, SCALE(0.06), 0]} receiveShadow material={materials.stoneTrim}>
-          <boxGeometry args={[SCALE(6.5), SCALE(0.12), HALL_LENGTH - SCALE(12)]} />
         </mesh>
         <mesh
           position={[0, HALL_HEIGHT + CEILING_THICKNESS / 2, 0]}
