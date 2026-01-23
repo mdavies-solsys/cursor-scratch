@@ -257,10 +257,12 @@ const WALL_REPEAT_H = Math.ceil(HALL_LENGTH / WALL_TILE_SIZE);
 const WALL_REPEAT_V = Math.ceil(HALL_HEIGHT / WALL_TILE_SIZE);
 
 // Column dimensions (computed once)
-const COLUMN_BASE_HEIGHT = SCALE(0.6);
-const COLUMN_RING_HEIGHT = SCALE(0.3);
-const COLUMN_CAP_HEIGHT = SCALE(0.8);
-const COLUMN_TOP_HEIGHT = SCALE(0.4);
+// FIXED: Made base and capital much taller (was 0.6/0.8, now 4.0/3.0) so width differences are visible
+// Previously, base+cap were only ~6% of column height, making width variations imperceptible
+const COLUMN_BASE_HEIGHT = SCALE(4.0);  // Wide base at bottom - increased from 0.6 to be visible
+const COLUMN_RING_HEIGHT = SCALE(1.5);  // Transition piece - increased from 0.3
+const COLUMN_CAP_HEIGHT = SCALE(3.0);   // Capital at top - increased from 0.8 to be visible
+const COLUMN_TOP_HEIGHT = SCALE(2.0);   // Top piece - increased from 0.4
 const COLUMN_CLEARANCE = SCALE(0.1);
 const COLUMN_TOTAL_HEIGHT = Math.max(SCALE(6), HALL_HEIGHT - COLUMN_CLEARANCE);
 const COLUMN_SHAFT_HEIGHT = Math.max(
@@ -279,34 +281,32 @@ const seededRandom = (seed) => {
 
 // Instanced Columns - renders all columns with GPU instancing (pure performance optimization)
 // Now includes random tilts and position offsets for ruins aesthetic
-// Square cathedral-style columns with wider base and capital
+// Square cathedral-style columns with wider base and capital, NO decorative rings
 const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
   const baseRef = useRef();
   const ringRef = useRef();
   const shaftRef = useRef();
   const capRef = useRef();
   const topRef = useRef();
-  const detailRingRefs = useRef([]);
 
   const count = positions.length;
   
   // Pre-create geometries - SQUARE cathedral columns
-  // Profile: Wide plinth -> base molding -> MUCH narrower shaft -> capital -> wide abacus
-  // Classical column proportions: shaft is ~60% of base width for dramatic silhouette
+  // Profile: Wide plinth -> base molding -> NARROW shaft -> capital -> wide abacus
+  // FIXED: Shaft is now 45% of base width (was 60%) for dramatically visible tapering
+  // FIXED: Base and capital are now taller so the width difference is actually visible
   const geometries = useMemo(() => ({
     // Plinth (base) - widest at bottom for stability
-    base: new THREE.BoxGeometry(SCALE(11.6), COLUMN_BASE_HEIGHT, SCALE(11.6)),
+    base: new THREE.BoxGeometry(SCALE(12.0), COLUMN_BASE_HEIGHT, SCALE(12.0)),
     // Base molding - transition between plinth and shaft
-    ring: new THREE.BoxGeometry(SCALE(9.0), COLUMN_RING_HEIGHT, SCALE(9.0)),
-    // Main shaft - significantly narrower than base and capital for classical cathedral silhouette
-    // At 7.0 vs 11.6, the shaft is about 60% of base width - creates visible tapering
-    shaft: new THREE.BoxGeometry(SCALE(7.0), COLUMN_SHAFT_HEIGHT, SCALE(7.0)),
+    ring: new THREE.BoxGeometry(SCALE(8.0), COLUMN_RING_HEIGHT, SCALE(8.0)),
+    // Main shaft - MUCH narrower than base and capital for visible cathedral silhouette
+    // At 5.5 vs 12.0, the shaft is about 46% of base width - very visible tapering
+    shaft: new THREE.BoxGeometry(SCALE(5.5), COLUMN_SHAFT_HEIGHT, SCALE(5.5)),
     // Capital - widens dramatically from shaft back toward base width
-    cap: new THREE.BoxGeometry(SCALE(9.0), COLUMN_CAP_HEIGHT, SCALE(9.0)),
+    cap: new THREE.BoxGeometry(SCALE(8.0), COLUMN_CAP_HEIGHT, SCALE(8.0)),
     // Abacus (top) - widest at top to support ceiling structure
-    top: new THREE.BoxGeometry(SCALE(11.6), COLUMN_TOP_HEIGHT, SCALE(11.6)),
-    // Square trim bands sized to match shaft width
-    detailRing: new THREE.BoxGeometry(SCALE(7.4), SCALE(0.15), SCALE(7.4)),
+    top: new THREE.BoxGeometry(SCALE(12.0), COLUMN_TOP_HEIGHT, SCALE(12.0)),
   }), []);
 
   // Generate random imperfections per column (seeded by position for consistency)
@@ -403,25 +403,6 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
         topRef.current.setMatrixAt(i, tempMatrix);
       }
 
-      // Detail rings
-      const ringOffsets = [0.2, 0.5, 0.8];
-      ringOffsets.forEach((ratio, ri) => {
-        const ringRefEl = detailRingRefs.current[ri];
-        if (ringRefEl) {
-          const shaftHeight = COLUMN_SHAFT_HEIGHT * imp.heightVar;
-          const ringY = COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT + ratio * shaftHeight;
-          tempPosition.set(
-            baseX + Math.sin(imp.tiltZ) * ratio * shaftHeight,
-            ringY,
-            baseZ + Math.sin(imp.tiltX) * ratio * shaftHeight
-          );
-          tempEuler.set(imp.tiltX * (0.5 + ratio * 0.5), 0, imp.tiltZ * (0.5 + ratio * 0.5));
-          tempQuaternion.setFromEuler(tempEuler);
-          tempScale.set(imp.scaleVar, 1, imp.scaleVar);
-          tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
-          ringRefEl.setMatrixAt(i, tempMatrix);
-        }
-      });
     });
 
     // Update instance matrices
@@ -429,9 +410,6 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
       if (ref.current) {
         ref.current.instanceMatrix.needsUpdate = true;
       }
-    });
-    detailRingRefs.current.forEach(ref => {
-      if (ref) ref.instanceMatrix.needsUpdate = true;
     });
   }, [positions, columnImperfections]);
 
@@ -472,17 +450,6 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
         receiveShadow
         frustumCulled={false}
       />
-      {/* Detail rings */}
-      {[0, 1, 2].map((ri) => (
-        <instancedMesh
-          key={`detail-ring-${ri}`}
-          ref={(el) => { detailRingRefs.current[ri] = el; }}
-          args={[geometries.detailRing, trimMaterial, count]}
-          castShadow
-          receiveShadow
-          frustumCulled={false}
-        />
-      ))}
     </group>
   );
 };
