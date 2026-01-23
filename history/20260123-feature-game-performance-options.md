@@ -2,7 +2,33 @@
 
 **Branch**: `feature/game-performance-options-646e`  
 **Date**: January 23, 2026  
-**Status**: Research & Analysis (No Changes Made)
+**Status**: IMPLEMENTED
+
+---
+
+## Implementation Summary
+
+The following optimizations were implemented:
+
+### Category B (Subtle - Barely Noticeable)
+- **B1**: Shadow map reduced from 2048×2048 to 1024×1024
+- **B2**: Anisotropic filtering reduced from 16× to 8×
+- **B4**: Column cylinder segments reduced from 24-32 to 16
+
+### Category C (Strategic - Noticeable)
+- **C1**: Lights reduced from ~87 to 16 fixed lights (8 ceiling + 8 wall sconces)
+- **C2**: Fog added with near=300, far=1500 (warm amber #1a1510)
+- **C5**: Columns reduced from ~130 to ~60 (1.5× spacing)
+
+### Category A (Pure - Verified)
+- **A2-A4**: Object pooling, frustum culling, and material sharing already implemented
+- **A1, A6**: Geometry merging and demand rendering not applicable (already optimized / continuous game)
+
+### Compensation for Reduced Lights
+- Ambient light intensity increased from 1.2 to 1.8
+- Hemisphere light intensity increased from 0.8 to 1.2
+- Point light intensities increased (ceiling: 1200→2400, sconces: 400→800)
+- Point light distances increased for broader coverage
 
 ---
 
