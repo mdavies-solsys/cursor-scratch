@@ -18,9 +18,10 @@ const HALL_HALF_WIDTH = HALL_WIDTH / 2;
 const HALL_HALF_LENGTH = HALL_LENGTH / 2;
 const ENEMY_BOUNDARY_MARGIN = 50; // Keep enemies away from walls
 const ENEMY_COUNT = 3;
-const ENEMY_SPEED = 2; // units per second
+const ENEMY_SPEED = 4; // units per second - increased for more aggressive pursuit
 const ENEMY_UPDATE_INTERVAL = 50; // ms
-const ENEMY_DIRECTION_CHANGE_INTERVAL = 3000; // ms - change direction every 3 seconds
+const ENEMY_STOP_DISTANCE = 12; // units - enemies stop pursuing when this close to player
+const ENEMY_DETECTION_RANGE = 1000; // units - enemies can detect players across the entire map
 const RESPAWN_DELAY = 5000; // ms - wait before respawning all enemies
 
 const servePath = path.join(__dirname, "node_modules", ".bin", "serve");
@@ -45,13 +46,10 @@ const randomColor = () =>
     .toString(16)
     .padStart(6, "0")}`;
 
-// Initialize enemy with random position and direction
+// Initialize enemy with random position
 const createEnemy = (id, faceIndex) => {
   const limitX = HALL_HALF_WIDTH - ENEMY_BOUNDARY_MARGIN;
   const limitZ = HALL_HALF_LENGTH - ENEMY_BOUNDARY_MARGIN;
-  
-  // Random angle for movement direction
-  const angle = Math.random() * Math.PI * 2;
   
   return {
     id,
@@ -60,9 +58,9 @@ const createEnemy = (id, faceIndex) => {
     z: (Math.random() - 0.5) * 2 * limitZ,
     alive: true,
     faceIndex, // Which profile picture to use (0, 1, or 2)
-    directionX: Math.cos(angle),
-    directionZ: Math.sin(angle),
-    lastDirectionChange: Date.now(),
+    directionX: 0, // Will be set by AI when pursuing player
+    directionZ: 0,
+    lastDirectionChange: null, // Used for random wandering when no players present
   };
 };
 
@@ -76,39 +74,81 @@ const initializeEnemies = () => {
   respawnPending = false;
 };
 
-// Update enemy position (server-side AI)
+// Find the closest player to an enemy
+const findClosestPlayer = (enemy) => {
+  if (players.size === 0) return null;
+  
+  let closestPlayer = null;
+  let closestDistance = Infinity;
+  
+  for (const player of players.values()) {
+    const pos = player.position;
+    if (!pos) continue;
+    
+    const dx = pos.x - enemy.x;
+    const dz = pos.z - enemy.z;
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    
+    if (distance < closestDistance && distance < ENEMY_DETECTION_RANGE) {
+      closestDistance = distance;
+      closestPlayer = { player, distance, dx, dz };
+    }
+  }
+  
+  return closestPlayer;
+};
+
+// Update enemy position (server-side AI) - now pursues closest player
 const updateEnemyPosition = (enemy, deltaSeconds) => {
   if (!enemy.alive) return;
   
-  const now = Date.now();
+  // Find the closest player
+  const target = findClosestPlayer(enemy);
   
-  // Change direction periodically
-  if (now - enemy.lastDirectionChange > ENEMY_DIRECTION_CHANGE_INTERVAL) {
-    const angle = Math.random() * Math.PI * 2;
-    enemy.directionX = Math.cos(angle);
-    enemy.directionZ = Math.sin(angle);
-    enemy.lastDirectionChange = now;
+  if (target) {
+    const { distance, dx, dz } = target;
+    
+    // Only move if we're outside the stop distance
+    if (distance > ENEMY_STOP_DISTANCE) {
+      // Normalize direction toward player
+      const dirLength = Math.sqrt(dx * dx + dz * dz);
+      if (dirLength > 0.001) {
+        enemy.directionX = dx / dirLength;
+        enemy.directionZ = dz / dirLength;
+      }
+      
+      // Move toward player
+      const moveX = enemy.directionX * ENEMY_SPEED * deltaSeconds;
+      const moveZ = enemy.directionZ * ENEMY_SPEED * deltaSeconds;
+      
+      enemy.x += moveX;
+      enemy.z += moveZ;
+    }
+    // If within stop distance, enemy holds position (ready to be attacked)
+  } else {
+    // No players - wander randomly (fallback behavior)
+    const now = Date.now();
+    if (!enemy.lastDirectionChange || now - enemy.lastDirectionChange > 3000) {
+      const angle = Math.random() * Math.PI * 2;
+      enemy.directionX = Math.cos(angle);
+      enemy.directionZ = Math.sin(angle);
+      enemy.lastDirectionChange = now;
+    }
+    
+    // Move in current direction
+    const moveX = enemy.directionX * ENEMY_SPEED * 0.5 * deltaSeconds; // Slower wander
+    const moveZ = enemy.directionZ * ENEMY_SPEED * 0.5 * deltaSeconds;
+    
+    enemy.x += moveX;
+    enemy.z += moveZ;
   }
   
-  // Move enemy
-  const moveX = enemy.directionX * ENEMY_SPEED * deltaSeconds;
-  const moveZ = enemy.directionZ * ENEMY_SPEED * deltaSeconds;
-  
-  enemy.x += moveX;
-  enemy.z += moveZ;
-  
-  // Boundary check - bounce off walls
+  // Boundary check - clamp to hall bounds
   const limitX = HALL_HALF_WIDTH - ENEMY_BOUNDARY_MARGIN;
   const limitZ = HALL_HALF_LENGTH - ENEMY_BOUNDARY_MARGIN;
   
-  if (enemy.x < -limitX || enemy.x > limitX) {
-    enemy.directionX *= -1;
-    enemy.x = Math.max(-limitX, Math.min(limitX, enemy.x));
-  }
-  if (enemy.z < -limitZ || enemy.z > limitZ) {
-    enemy.directionZ *= -1;
-    enemy.z = Math.max(-limitZ, Math.min(limitZ, enemy.z));
-  }
+  enemy.x = Math.max(-limitX, Math.min(limitX, enemy.x));
+  enemy.z = Math.max(-limitZ, Math.min(limitZ, enemy.z));
 };
 
 // Check if all enemies are dead and trigger respawn
