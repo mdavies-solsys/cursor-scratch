@@ -1062,7 +1062,7 @@ const Scene = ({ store, onSessionChange, onReady, flatControls, xrEnabled = true
       <Canvas
         shadows
         onCreated={handleCreated}
-        camera={{ position: [0, 1.6, 3], fov: 60, near: 0.1, far: 200 }}
+        camera={{ position: [0, 1.6, 3], fov: 60, near: 0.1, far: 800 }}
         gl={{ 
           antialias: true,
           toneMapping: THREE.ACESFilmicToneMapping,
