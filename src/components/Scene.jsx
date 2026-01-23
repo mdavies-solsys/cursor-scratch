@@ -433,30 +433,35 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
         args={[geometries.base, stoneMaterial, count]}
         castShadow
         receiveShadow
+        frustumCulled={false}
       />
       <instancedMesh
         ref={ringRef}
         args={[geometries.ring, trimMaterial, count]}
         castShadow
         receiveShadow
+        frustumCulled={false}
       />
       <instancedMesh
         ref={shaftRef}
         args={[geometries.shaft, stoneMaterial, count]}
         castShadow
         receiveShadow
+        frustumCulled={false}
       />
       <instancedMesh
         ref={capRef}
         args={[geometries.cap, trimMaterial, count]}
         castShadow
         receiveShadow
+        frustumCulled={false}
       />
       <instancedMesh
         ref={topRef}
         args={[geometries.top, trimMaterial, count]}
         castShadow
         receiveShadow
+        frustumCulled={false}
       />
       {/* Detail rings */}
       {[0, 1, 2].map((ri) => (
@@ -466,58 +471,9 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
           args={[geometries.detailRing, trimMaterial, count]}
           castShadow
           receiveShadow
+          frustumCulled={false}
         />
       ))}
-    </group>
-  );
-};
-
-// Floor debris and rubble for ruins aesthetic
-const FloorDebris = ({ stoneMaterial, count = 80 }) => {
-  const debrisPositions = useMemo(() => {
-    const positions = [];
-    for (let i = 0; i < count; i++) {
-      const seed = i * 137;
-      const x = (seededRandom(seed) - 0.5) * (HALL_WIDTH - SCALE(20));
-      const z = (seededRandom(seed + 1) - 0.5) * (HALL_LENGTH - SCALE(20));
-      const scale = 0.4 + seededRandom(seed + 2) * 1.2;
-      const rotY = seededRandom(seed + 3) * Math.PI * 2;
-      const rotX = (seededRandom(seed + 4) - 0.5) * 0.4;
-      const rotZ = (seededRandom(seed + 5) - 0.5) * 0.4;
-      const type = Math.floor(seededRandom(seed + 6) * 4);  // 0-3 for different shapes
-      positions.push({ x, z, scale, rotY, rotX, rotZ, type });
-    }
-    return positions;
-  }, [count]);
-
-  return (
-    <group>
-      {debrisPositions.map((debris, i) => {
-        const y = debris.scale * SCALE(0.3);  // Half-buried in floor
-        return (
-          <mesh
-            key={`debris-${i}`}
-            position={[debris.x, y, debris.z]}
-            rotation={[debris.rotX, debris.rotY, debris.rotZ]}
-            material={stoneMaterial}
-            castShadow
-            receiveShadow
-          >
-            {debris.type === 0 && (
-              <boxGeometry args={[SCALE(debris.scale * 1.5), SCALE(debris.scale * 0.8), SCALE(debris.scale * 1.2)]} />
-            )}
-            {debris.type === 1 && (
-              <cylinderGeometry args={[SCALE(debris.scale * 0.6), SCALE(debris.scale * 0.8), SCALE(debris.scale * 1.5), 8]} />
-            )}
-            {debris.type === 2 && (
-              <dodecahedronGeometry args={[SCALE(debris.scale * 0.7), 0]} />
-            )}
-            {debris.type === 3 && (
-              <tetrahedronGeometry args={[SCALE(debris.scale * 0.9), 0]} />
-            )}
-          </mesh>
-        );
-      })}
     </group>
   );
 };
@@ -860,14 +816,13 @@ const World = () => {
   }, []);
 
   const columnPositions = useMemo(() => {
-    // C5: Increased spacing for massive 4x diameter columns
-    // Wider spacing to accommodate the larger column footprint
-    const columnSpacingX = SCALE(60);  // Increased for 4x larger columns
-    const columnSpacingZ = SCALE(55);  // Increased for 4x larger columns
+    // C5: Column spacing for larger columns while maintaining high column count
+    const columnSpacingX = SCALE(42);  // Original spacing
+    const columnSpacingZ = SCALE(38);  // Original spacing
     
     // Calculate number of columns needed to fill the expanded room
-    const numColumnsX = Math.floor((HALL_WIDTH - SCALE(30)) / columnSpacingX);  // Leave margin from walls
-    const numColumnsZ = Math.floor((HALL_LENGTH - SCALE(30)) / columnSpacingZ);
+    const numColumnsX = Math.floor((HALL_WIDTH - SCALE(16)) / columnSpacingX);  // Leave margin from walls
+    const numColumnsZ = Math.floor((HALL_LENGTH - SCALE(20)) / columnSpacingZ);
     
     const positions = [];
     
@@ -877,8 +832,8 @@ const World = () => {
       const xOffset = (numColumnsX - 1) * columnSpacingX / 2;
       const x = xi * columnSpacingX - xOffset;
       
-      // Skip columns too close to center walkway (leave a corridor for massive columns)
-      if (Math.abs(x) < SCALE(20)) continue;
+      // Skip columns too close to center walkway (leave a corridor)
+      if (Math.abs(x) < SCALE(8)) continue;
       
       for (let zi = 0; zi < numColumnsZ; zi++) {
         const zOffset = (numColumnsZ - 1) * columnSpacingZ / 2;
@@ -961,19 +916,19 @@ const World = () => {
   return (
     <>
       {/* C2: Atmospheric fog - near 300, far 1500 for depth and mystery */}
-      <fog attach="fog" args={["#181812", 300, 1500]} />
+      <fog attach="fog" args={["#1a1a18", 300, 1500]} />
       
-      {/* C1: Increased ambient to compensate for fewer point lights - slight green tint for ruins */}
-      <ambientLight intensity={1.8} color="#d9d968" />
+      {/* C1: Increased ambient to compensate for fewer point lights - green-white tint */}
+      <ambientLight intensity={1.8} color="#e8f0e0" />
       
-      {/* C1: Increased hemisphere for better fill with fewer point lights - slight green tint */}
-      <hemisphereLight color="#d9dd78" groundColor="#3d4422" intensity={1.2} />
+      {/* C1: Increased hemisphere for better fill with fewer point lights - green-white tint */}
+      <hemisphereLight color="#f0f8e8" groundColor="#404838" intensity={1.2} />
       
-      {/* Main directional light with slight green tint for ancient ruins feel */}
+      {/* Main directional light with green-white tint for ancient ruins feel */}
       <directionalLight
         position={[0, HALL_HEIGHT - SCALE(2), 0]}
         intensity={2.0}
-        color="#d4c955"
+        color="#e8f0d8"
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -986,14 +941,14 @@ const World = () => {
         shadow-bias={-0.0001}
       />
       
-      {/* Secondary fill light with slight green tint */}
+      {/* Secondary fill light with green-white tint */}
       <directionalLight
         position={[-SCALE(10), SCALE(12), SCALE(20)]}
         intensity={0.6}
-        color="#d4b844"
+        color="#dde8cc"
       />
       
-      {/* C1: Fixed 8 ceiling point lights (was ~55 dynamic) - slight green tint */}
+      {/* C1: Fixed 8 ceiling point lights (was ~55 dynamic) - green-white tint */}
       {fixedCeilingLights.map((pos, i) => (
         <pointLight
           key={`ceiling-light-${i}`}
@@ -1001,11 +956,11 @@ const World = () => {
           intensity={2400}
           distance={SCALE(200)}
           decay={2}
-          color="#c9b833"
+          color="#e0f0d0"
         />
       ))}
       
-      {/* C1: Fixed 8 wall sconce lights (was ~32 dynamic) - slight green tint */}
+      {/* C1: Fixed 8 wall sconce lights (was ~32 dynamic) - green-white tint */}
       {fixedWallSconces.map((pos, i) => (
         <pointLight
           key={`wall-sconce-${i}`}
@@ -1013,30 +968,30 @@ const World = () => {
           intensity={800}
           distance={SCALE(100)}
           decay={2}
-          color="#c99922"
+          color="#d8e8c8"
         />
       ))}
       
-      {/* Emissive ceiling light fixtures - only for the 8 fixed positions - slight green tint */}
+      {/* Emissive ceiling light fixtures - only for the 8 fixed positions - green-white tint */}
       {fixedCeilingLights.map((pos, i) => (
         <mesh key={`light-fixture-${i}`} position={[pos.x, ceilingLightY + SCALE(0.5), pos.z]}>
           <boxGeometry args={[SCALE(4), SCALE(0.3), SCALE(4)]} />
           <meshStandardMaterial
-            color="#d9d966"
-            emissive="#c9b833"
+            color="#e8f8e0"
+            emissive="#d0e8c0"
             emissiveIntensity={3}
             toneMapped={false}
           />
         </mesh>
       ))}
       
-      {/* Emissive wall sconce fixtures - only for the 8 fixed positions - slight green tint */}
+      {/* Emissive wall sconce fixtures - only for the 8 fixed positions - green-white tint */}
       {fixedWallSconces.map((pos, i) => (
         <mesh key={`sconce-fixture-${i}`} position={[pos.x < 0 ? pos.x + SCALE(1) : pos.x - SCALE(1), wallLightY, pos.z]}>
           <boxGeometry args={[SCALE(0.4), SCALE(1.5), SCALE(1)]} />
           <meshStandardMaterial
-            color="#d4bb55"
-            emissive="#c99922"
+            color="#e0f0d8"
+            emissive="#c8e0b8"
             emissiveIntensity={2.5}
             toneMapped={false}
           />
@@ -1091,8 +1046,7 @@ const World = () => {
         <WallRibs side={1} material={materials.stoneTrim} ribZPositions={ribZPositions} />
         <WallBands side={-1} material={materials.stoneTrim} />
         <WallBands side={1} material={materials.stoneTrim} />
-        {/* Ruins imperfections - debris and wall damage */}
-        <FloorDebris stoneMaterial={materials.stone} count={100} />
+        {/* Ruins imperfections - wall damage */}
         <WallCracks side={-1} material={materials.voidMaterial} />
         <WallCracks side={1} material={materials.voidMaterial} />
         {beamZPositions.map((z) => (
