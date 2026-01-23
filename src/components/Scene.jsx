@@ -279,6 +279,7 @@ const seededRandom = (seed) => {
 
 // Instanced Columns - renders all columns with GPU instancing (pure performance optimization)
 // Now includes random tilts and position offsets for ruins aesthetic
+// Square cathedral-style columns with wider base and capital
 const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
   const baseRef = useRef();
   const ringRef = useRef();
@@ -287,17 +288,23 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
   const topRef = useRef();
   const detailRingRefs = useRef([]);
 
-  const segments = 16;  // B4: Reduced from 24 for performance (subtle visual impact up close)
   const count = positions.length;
   
-  // Pre-create geometries (4x larger diameter for massive ruins columns)
+  // Pre-create geometries - SQUARE cathedral columns
+  // Profile: Wide plinth -> base molding -> narrower shaft -> capital -> wide abacus
   const geometries = useMemo(() => ({
-    base: new THREE.CylinderGeometry(SCALE(6.4), SCALE(7.2), COLUMN_BASE_HEIGHT, segments),
-    ring: new THREE.CylinderGeometry(SCALE(5.8), SCALE(6.4), COLUMN_RING_HEIGHT, segments),
-    shaft: new THREE.CylinderGeometry(SCALE(4.6), SCALE(5.0), COLUMN_SHAFT_HEIGHT, segments),  // B4: Reduced from 32
+    // Plinth (base) - widest at bottom for stability
+    base: new THREE.BoxGeometry(SCALE(11.6), COLUMN_BASE_HEIGHT, SCALE(11.6)),
+    // Base molding - transition between plinth and shaft
+    ring: new THREE.BoxGeometry(SCALE(10.4), COLUMN_RING_HEIGHT, SCALE(10.4)),
+    // Main shaft - narrower than base and capital for cathedral silhouette
+    shaft: new THREE.BoxGeometry(SCALE(9.2), COLUMN_SHAFT_HEIGHT, SCALE(9.2)),
+    // Capital - widens from shaft
     cap: new THREE.BoxGeometry(SCALE(10.4), COLUMN_CAP_HEIGHT, SCALE(10.4)),
+    // Abacus (top) - widest at top to support ceiling structure
     top: new THREE.BoxGeometry(SCALE(11.6), COLUMN_TOP_HEIGHT, SCALE(11.6)),
-    detailRing: new THREE.CylinderGeometry(SCALE(5.12), SCALE(5.12), SCALE(0.12), segments),
+    // Square trim bands instead of circular detail rings
+    detailRing: new THREE.BoxGeometry(SCALE(9.6), SCALE(0.15), SCALE(9.6)),
   }), []);
 
   // Generate random imperfections per column (seeded by position for consistency)
