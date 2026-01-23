@@ -11,16 +11,18 @@ This folder contains context documents from pull request conversations. Each fil
 
 ## File Naming Convention
 
-Files should be named using the PR branch name or a descriptive identifier:
+Files should be named with a **date prefix** (YYYY-MM-DD) followed by the branch name or descriptive identifier. This ensures chronological ordering when viewing the folder.
 
 ```
-{branch-name}.md
+{YYYY-MM-DD}-{branch-name}.md
 ```
 
 Examples:
-- `feature-large-room-mobile-performance.md`
-- `fix-webxr-session-handling.md`
-- `refactor-lighting-system.md`
+- `2026-01-23-feature-large-room-mobile-performance.md`
+- `2026-01-22-fix-webxr-session-handling.md`
+- `2026-01-20-refactor-lighting-system.md`
+
+Use the date when the work began or the PR was created.
 
 ## File Structure
 
