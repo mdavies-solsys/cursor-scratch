@@ -20,15 +20,17 @@ const SCALE = (value) => value * HALL_SCALE;
 // Room dimensions - 5x wider and longer than original
 const HALL_WIDTH = SCALE(44 * 5);  // 5x original width
 const HALL_LENGTH = SCALE(110 * 5);  // 5x original length
-const HALL_HEIGHT = SCALE(16);
+const HALL_HEIGHT = SCALE(32);
 // Render distance based on largest room dimension
 const MAX_ROOM_DIMENSION = Math.max(HALL_WIDTH, HALL_LENGTH, HALL_HEIGHT);
 const RENDER_DISTANCE = MAX_ROOM_DIMENSION * 1.5;
 const WALL_THICKNESS = SCALE(1.6);
 const FLOOR_THICKNESS = SCALE(1.2);
 const CEILING_THICKNESS = SCALE(1.1);
-const DOOR_WIDTH = SCALE(12);
-const DOOR_HEIGHT = SCALE(10);
+const DOOR_WIDTH = SCALE(14);
+const DOOR_HEIGHT = SCALE(18);  // Height to arch spring point
+const ARCH_RADIUS = DOOR_WIDTH / 2;  // Semicircular arch
+const TOTAL_DOOR_HEIGHT = DOOR_HEIGHT + ARCH_RADIUS;  // Full height including arch
 const BOUNDARY_MARGIN = 1.2;
 const HALL_HALF_WIDTH = HALL_WIDTH / 2;
 const HALL_HALF_LENGTH = HALL_LENGTH / 2;
@@ -438,28 +440,126 @@ const WallBands = ({ side, material }) => {
   );
 };
 
+// Create arch infill geometry (fills the corners above the arch in the rectangular wall opening)
+const createArchInfillGeometry = (radius, depth, segments = 32) => {
+  const shape = new THREE.Shape();
+  // Start at bottom-left of the square that contains the semicircle
+  shape.moveTo(-radius, 0);
+  shape.lineTo(-radius, radius);
+  shape.lineTo(radius, radius);
+  shape.lineTo(radius, 0);
+  // Cut out the semicircle (arch) from the bottom
+  shape.absarc(0, 0, radius, 0, Math.PI, false);
+  shape.lineTo(-radius, 0);
+  
+  const extrudeSettings = {
+    depth: depth,
+    bevelEnabled: false,
+    steps: 1,
+  };
+  
+  return new THREE.ExtrudeGeometry(shape, extrudeSettings);
+};
+
+// Create arched door panel geometry
+const createArchedPanelGeometry = (width, height, archRadius, depth, segments = 16) => {
+  const shape = new THREE.Shape();
+  const halfWidth = width / 2;
+  
+  // Start at bottom-left
+  shape.moveTo(-halfWidth, 0);
+  shape.lineTo(-halfWidth, height);
+  // Arch at top
+  shape.absarc(0, height, halfWidth, Math.PI, 0, true);
+  shape.lineTo(halfWidth, 0);
+  shape.lineTo(-halfWidth, 0);
+  
+  const extrudeSettings = {
+    depth: depth,
+    bevelEnabled: false,
+    steps: 1,
+  };
+  
+  return new THREE.ExtrudeGeometry(shape, extrudeSettings);
+};
+
 const Doorway = ({ z, rotation, stoneMaterial, trimMaterial, metalMaterial }) => {
   const sideWidth = (HALL_WIDTH - DOOR_WIDTH) / 2;
-  const lintelHeight = HALL_HEIGHT - DOOR_HEIGHT;
+  const lintelHeight = HALL_HEIGHT - TOTAL_DOOR_HEIGHT;
   const frameWidth = SCALE(0.8);
   const frameDepth = WALL_THICKNESS + SCALE(0.4);
-  const doorPanelWidth = DOOR_WIDTH / 2 - SCALE(0.8);
+  const doorPanelWidth = DOOR_WIDTH / 2 - SCALE(1);
   const doorPanelHeight = DOOR_HEIGHT - SCALE(0.4);
   const doorPanelDepth = SCALE(0.4);
   const swing = Math.PI * 0.6;
   const voidDepth = SCALE(22);
+  
+  // Geometries for arch elements
+  const archInfillGeometry = useMemo(
+    () => createArchInfillGeometry(ARCH_RADIUS, WALL_THICKNESS, 32),
+    []
+  );
+  
+  const archFrameGeometry = useMemo(
+    () => createArchInfillGeometry(ARCH_RADIUS + frameWidth, frameDepth, 32),
+    []
+  );
+  
+  const archFrameInnerGeometry = useMemo(
+    () => createArchInfillGeometry(ARCH_RADIUS, frameDepth + 0.1, 32),
+    []
+  );
+  
+  const archedPanelGeometry = useMemo(
+    () => createArchedPanelGeometry(doorPanelWidth, doorPanelHeight, doorPanelWidth / 2, doorPanelDepth, 16),
+    [doorPanelWidth, doorPanelHeight, doorPanelDepth]
+  );
+  
+  // Arch void geometry for the black passageway
+  const archVoidGeometry = useMemo(() => {
+    const shape = new THREE.Shape();
+    const halfWidth = (DOOR_WIDTH - SCALE(1)) / 2;
+    const rectHeight = DOOR_HEIGHT;
+    
+    shape.moveTo(-halfWidth, 0);
+    shape.lineTo(-halfWidth, rectHeight);
+    shape.absarc(0, rectHeight, halfWidth, Math.PI, 0, true);
+    shape.lineTo(halfWidth, 0);
+    shape.lineTo(-halfWidth, 0);
+    
+    const extrudeSettings = {
+      depth: voidDepth,
+      bevelEnabled: false,
+      steps: 1,
+    };
+    
+    return new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  }, [voidDepth]);
 
   return (
     <group position={[0, 0, z]} rotation={[0, rotation, 0]}>
+      {/* Side walls */}
       <mesh position={[-(DOOR_WIDTH / 2 + sideWidth / 2), HALL_HEIGHT / 2, 0]} material={stoneMaterial} receiveShadow>
         <boxGeometry args={[sideWidth, HALL_HEIGHT, WALL_THICKNESS]} />
       </mesh>
       <mesh position={[DOOR_WIDTH / 2 + sideWidth / 2, HALL_HEIGHT / 2, 0]} material={stoneMaterial} receiveShadow>
         <boxGeometry args={[sideWidth, HALL_HEIGHT, WALL_THICKNESS]} />
       </mesh>
-      <mesh position={[0, DOOR_HEIGHT + lintelHeight / 2, 0]} material={stoneMaterial} receiveShadow>
+      
+      {/* Lintel above the arch */}
+      <mesh position={[0, TOTAL_DOOR_HEIGHT + lintelHeight / 2, 0]} material={stoneMaterial} receiveShadow>
         <boxGeometry args={[DOOR_WIDTH, lintelHeight, WALL_THICKNESS]} />
       </mesh>
+      
+      {/* Arch infill - the stone that fills the corners above the arch */}
+      <mesh
+        position={[0, DOOR_HEIGHT, -WALL_THICKNESS / 2]}
+        material={stoneMaterial}
+        geometry={archInfillGeometry}
+        receiveShadow
+      />
+      
+      {/* Side frames (trim) - up to arch spring point */}
       <mesh
         position={[-DOOR_WIDTH / 2 + frameWidth / 2, DOOR_HEIGHT / 2, SCALE(0.2)]}
         material={trimMaterial}
@@ -476,28 +576,61 @@ const Doorway = ({ z, rotation, stoneMaterial, trimMaterial, metalMaterial }) =>
       >
         <boxGeometry args={[frameWidth, DOOR_HEIGHT, frameDepth]} />
       </mesh>
+      
+      {/* Arch frame trim - outer arch */}
       <mesh
-        position={[0, DOOR_HEIGHT - SCALE(0.2), SCALE(0.2)]}
+        position={[0, DOOR_HEIGHT, SCALE(0.2) - frameDepth / 2]}
+        rotation={[Math.PI / 2, 0, 0]}
+        castShadow
+        receiveShadow
+      >
+        <torusGeometry args={[ARCH_RADIUS + frameWidth / 2, frameWidth / 2, 8, 32, Math.PI]} />
+        <meshStandardMaterial color={trimMaterial.color} roughness={0.68} metalness={0.12} />
+      </mesh>
+      
+      {/* Keystone at top of arch */}
+      <mesh
+        position={[0, DOOR_HEIGHT + ARCH_RADIUS + SCALE(0.3), SCALE(0.3)]}
         material={trimMaterial}
         castShadow
         receiveShadow
       >
-        <boxGeometry args={[DOOR_WIDTH - frameWidth * 2, SCALE(0.5), frameDepth]} />
+        <boxGeometry args={[SCALE(1.5), SCALE(1.2), frameDepth]} />
       </mesh>
+      
+      {/* Left door panel with arched top */}
       <group position={[-DOOR_WIDTH / 2 + frameWidth, 0, SCALE(0.4)]} rotation={[0, swing, 0]}>
-        <mesh position={[doorPanelWidth / 2, doorPanelHeight / 2, 0]} material={metalMaterial} castShadow receiveShadow>
-          <boxGeometry args={[doorPanelWidth, doorPanelHeight, doorPanelDepth]} />
-        </mesh>
+        <mesh
+          position={[doorPanelWidth / 2, 0, -doorPanelDepth / 2]}
+          material={metalMaterial}
+          geometry={archedPanelGeometry}
+          castShadow
+          receiveShadow
+        />
       </group>
+      
+      {/* Right door panel with arched top */}
       <group position={[DOOR_WIDTH / 2 - frameWidth, 0, SCALE(0.4)]} rotation={[0, -swing, 0]}>
-        <mesh position={[-doorPanelWidth / 2, doorPanelHeight / 2, 0]} material={metalMaterial} castShadow receiveShadow>
-          <boxGeometry args={[doorPanelWidth, doorPanelHeight, doorPanelDepth]} />
-        </mesh>
+        <mesh
+          position={[-doorPanelWidth / 2, 0, -doorPanelDepth / 2]}
+          rotation={[0, Math.PI, 0]}
+          material={metalMaterial}
+          geometry={archedPanelGeometry}
+          castShadow
+          receiveShadow
+        />
       </group>
-      <mesh position={[0, DOOR_HEIGHT / 2, -WALL_THICKNESS / 2 - voidDepth / 2]} castShadow={false}>
-        <boxGeometry args={[DOOR_WIDTH - SCALE(1), DOOR_HEIGHT, voidDepth]} />
+      
+      {/* Black void behind door - arched shape */}
+      <mesh
+        position={[0, 0, -WALL_THICKNESS / 2 - voidDepth]}
+        geometry={archVoidGeometry}
+        castShadow={false}
+      >
         <meshBasicMaterial color="#000000" side={THREE.BackSide} />
       </mesh>
+      
+      {/* Threshold at bottom */}
       <mesh position={[0, SCALE(0.1), SCALE(1.8)]} material={trimMaterial} receiveShadow>
         <boxGeometry args={[DOOR_WIDTH + SCALE(2), SCALE(0.2), SCALE(3)]} />
       </mesh>
@@ -776,9 +909,6 @@ const World = () => {
       <group>
         <mesh position={[0, -FLOOR_THICKNESS / 2, 0]} receiveShadow material={materials.stoneDark}>
           <boxGeometry args={[HALL_WIDTH + SCALE(6), FLOOR_THICKNESS, HALL_LENGTH + SCALE(6)]} />
-        </mesh>
-        <mesh position={[0, SCALE(0.06), 0]} receiveShadow material={materials.stoneTrim}>
-          <boxGeometry args={[SCALE(6.5), SCALE(0.12), HALL_LENGTH - SCALE(12)]} />
         </mesh>
         <mesh
           position={[0, HALL_HEIGHT + CEILING_THICKNESS / 2, 0]}
