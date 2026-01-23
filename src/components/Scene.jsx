@@ -120,29 +120,6 @@ const useMultiplayer = () => {
   return { players, localIdRef, sendMove };
 };
 
-const HeadLight = () => {
-  const lightRef = useRef(null);
-  const { camera } = useThree();
-
-  useFrame(() => {
-    if (!lightRef.current) {
-      return;
-    }
-    lightRef.current.position.copy(camera.position);
-  });
-
-  return (
-    <pointLight
-      ref={lightRef}
-      position={[0, 1.6, 0]}
-      intensity={0.6}
-      distance={18}
-      decay={2}
-      color="#f4d3a8"
-    />
-  );
-};
-
 const createNoiseCanvas = (size, baseColor, accentColor, noiseStrength = 22, veinCount = 18) => {
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -259,7 +236,7 @@ const createTexturedMaterial = ({
   });
 };
 
-const Column = ({ position, stoneMaterial, trimMaterial, lanternGlassMaterial, lanternFrameMaterial }) => {
+const Column = ({ position, stoneMaterial, trimMaterial }) => {
   const baseHeight = SCALE(0.6);
   const ringHeight = SCALE(0.3);
   const capHeight = SCALE(0.8);
@@ -276,19 +253,6 @@ const Column = ({ position, stoneMaterial, trimMaterial, lanternGlassMaterial, l
   const ringOffsets = [0.2, 0.5, 0.8].map((ratio) => ratio * shaftHeight);
   const shaftRadiusTop = SCALE(1.15);
   const shaftRadiusBottom = SCALE(1.25);
-  const lanternBodyHeight = SCALE(1.1);
-  const lanternBodyRadius = SCALE(0.35);
-  const lanternCapHeight = SCALE(0.22);
-  const lanternCapRadius = SCALE(0.45);
-  const lanternSide = position[0] >= 0 ? -1 : 1;
-  const lanternOffset = shaftRadiusTop + lanternBodyRadius + SCALE(0.2);
-  const lanternHeight = baseHeight + ringHeight + shaftHeight * 0.55;
-  const lanternTopY = lanternBodyHeight / 2 + lanternCapHeight / 2;
-  const lanternBottomY = -lanternBodyHeight / 2 - lanternCapHeight / 2;
-  const bracketLength = SCALE(0.6);
-  const bracketThickness = SCALE(0.16);
-  const frameMaterial = lanternFrameMaterial ?? trimMaterial;
-  const glassMaterial = lanternGlassMaterial ?? trimMaterial;
 
   return (
     <group position={position}>
@@ -318,30 +282,6 @@ const Column = ({ position, stoneMaterial, trimMaterial, lanternGlassMaterial, l
       <mesh position={[0, topY, 0]} castShadow receiveShadow material={trimMaterial}>
         <boxGeometry args={[SCALE(2.9), topHeight, SCALE(2.9)]} />
       </mesh>
-      <group position={[lanternSide * lanternOffset, lanternHeight, 0]}>
-        <mesh position={[-lanternSide * bracketLength / 2, 0, 0]} material={frameMaterial}>
-          <boxGeometry args={[bracketLength, bracketThickness, bracketThickness]} />
-        </mesh>
-        <mesh material={glassMaterial}>
-          <cylinderGeometry args={[lanternBodyRadius, lanternBodyRadius, lanternBodyHeight, 14]} />
-        </mesh>
-        <mesh position={[0, lanternTopY, 0]} material={frameMaterial}>
-          <cylinderGeometry args={[lanternCapRadius, lanternCapRadius, lanternCapHeight, 14]} />
-        </mesh>
-        <mesh position={[0, lanternBottomY, 0]} material={frameMaterial}>
-          <cylinderGeometry args={[lanternCapRadius, lanternCapRadius, lanternCapHeight, 14]} />
-        </mesh>
-        <mesh position={[0, lanternTopY + lanternCapHeight / 2 + SCALE(0.2), 0]} material={frameMaterial}>
-          <boxGeometry args={[SCALE(0.2), SCALE(0.35), SCALE(0.2)]} />
-        </mesh>
-        <pointLight
-          position={[0, 0, 0]}
-          intensity={1.4}
-          distance={SCALE(18)}
-          decay={2}
-          color="#f4c98b"
-        />
-      </group>
     </group>
   );
 };
@@ -498,21 +438,11 @@ const World = () => {
       grainBase: 90,
       grainVariance: 90,
     });
-    const lanternGlass = new THREE.MeshStandardMaterial({
-      color: "#f5d2a2",
-      emissive: "#f0b56d",
-      emissiveIntensity: 1.3,
-      transparent: true,
-      opacity: 0.9,
-      roughness: 0.25,
-      metalness: 0,
-    });
     return {
       stone,
       stoneDark,
       stoneTrim,
       metal,
-      lanternGlass,
     };
   }, []);
 
@@ -530,19 +460,16 @@ const World = () => {
 
   const ribZPositions = useMemo(() => [-48, -32, -16, 0, 16, 32, 48].map(SCALE), []);
   const beamZPositions = useMemo(() => [-40, -20, 0, 20, 40].map(SCALE), []);
-  const lightZPositions = useMemo(() => [-45, -30, -15, 0, 15, 30, 45].map(SCALE), []);
-  const sideLightXPositions = useMemo(() => [-12, 12].map(SCALE), []);
-  const floorLightZPositions = useMemo(() => [-40, -20, 0, 20, 40].map(SCALE), []);
-  const floorLightXPositions = useMemo(() => [-16, 16].map(SCALE), []);
+  const ceilingLightZPositions = useMemo(() => [-30, 0, 30].map(SCALE), []);
+  const ceilingLightY = HALL_HEIGHT - SCALE(2.4);
 
   return (
     <>
-      <fog attach="fog" args={["#15110e", SCALE(28), SCALE(170)]} />
-      <ambientLight intensity={0.7} />
-      <hemisphereLight color="#f7e1c7" groundColor="#2c2521" intensity={0.85} />
+      <ambientLight intensity={0.45} />
+      <hemisphereLight color="#f6e2c8" groundColor="#2f2a26" intensity={0.4} />
       <directionalLight
         position={[SCALE(18), SCALE(24), SCALE(14)]}
-        intensity={1.2}
+        intensity={1.05}
         color="#f6d8b6"
         castShadow
         shadow-mapSize-width={2048}
@@ -554,45 +481,16 @@ const World = () => {
         shadow-camera-top={SCALE(40)}
         shadow-camera-bottom={-SCALE(40)}
       />
-      {lightZPositions.map((z) => (
+      {ceilingLightZPositions.map((z) => (
         <pointLight
-          key={`hall-light-${z}`}
-          position={[0, SCALE(9.6), z]}
-          intensity={1.35}
-          distance={SCALE(34)}
+          key={`ceiling-light-${z}`}
+          position={[0, ceilingLightY, z]}
+          intensity={0.9}
+          distance={SCALE(70)}
           decay={2}
-          color="#f6d3a8"
+          color="#f6d4aa"
         />
       ))}
-      {sideLightXPositions.map((x) => (
-        <group key={`side-light-row-${x}`}>
-          {lightZPositions.map((z) => (
-            <pointLight
-              key={`side-light-${x}-${z}`}
-              position={[x, SCALE(7.2), z]}
-              intensity={0.75}
-              distance={SCALE(26)}
-              decay={2}
-              color="#f2c89a"
-            />
-          ))}
-        </group>
-      ))}
-      {floorLightXPositions.map((x) => (
-        <group key={`floor-light-row-${x}`}>
-          {floorLightZPositions.map((z) => (
-            <pointLight
-              key={`floor-light-${x}-${z}`}
-              position={[x, SCALE(2.6), z]}
-              intensity={0.55}
-              distance={SCALE(18)}
-              decay={2}
-              color="#f7dcbc"
-            />
-          ))}
-        </group>
-      ))}
-      <HeadLight />
       <group>
         <mesh position={[0, -FLOOR_THICKNESS / 2, 0]} receiveShadow material={materials.stoneDark}>
           <boxGeometry args={[HALL_WIDTH + SCALE(6), FLOOR_THICKNESS, HALL_LENGTH + SCALE(6)]} />
@@ -641,8 +539,6 @@ const World = () => {
             position={position}
             stoneMaterial={materials.stone}
             trimMaterial={materials.stoneTrim}
-            lanternGlassMaterial={materials.lanternGlass}
-            lanternFrameMaterial={materials.metal}
           />
         ))}
         <WallRibs side={-1} material={materials.stoneTrim} ribZPositions={ribZPositions} />
