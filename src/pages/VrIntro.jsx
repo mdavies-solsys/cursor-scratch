@@ -138,6 +138,7 @@ const VrIntro = () => {
         onReady={() => setSceneReady(true)}
         flatControls={flatControls}
         xrEnabled={xrAvailable}
+        isMobile={isTouchDevice}
       />
       {!session && !entered && (
         <div className="vr-intro">
@@ -148,13 +149,16 @@ const VrIntro = () => {
             </p>
             <ul className="vr-intro__controls">
               <li>
-                <strong>VR:</strong> headset + controllers.
+                <strong>VR:</strong> headset + controllers. Swing sword to attack.
               </li>
               <li>
-                <strong>Desktop:</strong> WASD + mouse look.
+                <strong>Desktop:</strong> WASD + mouse look. Click to attack.
               </li>
               <li>
-                <strong>Mobile & Steam Deck:</strong> dual analog sticks.
+                <strong>Mobile:</strong> dual sticks. Tap screen to attack.
+              </li>
+              <li>
+                <strong>Gamepad:</strong> analog sticks. Trigger to attack.
               </li>
             </ul>
             {xrSupported || session ? (

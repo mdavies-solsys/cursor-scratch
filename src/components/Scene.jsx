@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useRef, useState, useEffect } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { XR, useXR } from "@react-three/xr";
 import * as THREE from "three";
+import { Enemy, VRSword, FlatSword, useAttackInput, useRaycastAttack } from "./Combat.jsx";
 
 const DEADZONE = 0.1;
 const MAX_SPEED = 8;
@@ -75,6 +76,7 @@ const resolveWsUrl = () => {
 
 const useMultiplayer = () => {
   const [players, setPlayers] = useState([]);
+  const [enemies, setEnemies] = useState([]);
   const socketRef = useRef(null);
   const localIdRef = useRef(null);
   const lastSentRef = useRef(0);
@@ -89,10 +91,14 @@ const useMultiplayer = () => {
         if (payload.type === "welcome") {
           localIdRef.current = payload.id;
           setPlayers(Array.isArray(payload.players) ? payload.players : []);
+          setEnemies(Array.isArray(payload.enemies) ? payload.enemies : []);
           return;
         }
         if (payload.type === "state") {
           setPlayers(Array.isArray(payload.players) ? payload.players : []);
+        }
+        if (payload.type === "enemies") {
+          setEnemies(Array.isArray(payload.enemies) ? payload.enemies : []);
         }
       } catch (error) {
         console.error("Invalid multiplayer payload", error);
@@ -123,7 +129,20 @@ const useMultiplayer = () => {
     );
   }, []);
 
-  return { players, localIdRef, sendMove };
+  const sendAttack = useCallback((enemyId) => {
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    socket.send(
+      JSON.stringify({
+        type: "attack",
+        enemyId,
+      })
+    );
+  }, []);
+
+  return { players, enemies, localIdRef, sendMove, sendAttack };
 };
 
 const createNoiseCanvas = (size, baseColor, accentColor, noiseStrength = 22, veinCount = 18) => {
@@ -1333,20 +1352,66 @@ const RemoteAvatar = ({ color, position, rotation }) => {
   );
 };
 
+// Load enemy face textures
+const useEnemyFaceTextures = () => {
+  const [textures, setTextures] = useState([null, null, null]);
+  
+  useEffect(() => {
+    const loader = new THREE.TextureLoader();
+    const paths = ["/IMG_2364.jpeg", "/IMG_2365.jpeg", "/IMG_2366.jpeg"];
+    
+    const loadedTextures = [];
+    let loadedCount = 0;
+    
+    paths.forEach((path, index) => {
+      loader.load(
+        path,
+        (texture) => {
+          loadedTextures[index] = texture;
+          loadedCount++;
+          if (loadedCount === 3) {
+            setTextures([...loadedTextures]);
+          }
+        },
+        undefined,
+        (error) => {
+          console.warn(`Failed to load face texture ${path}:`, error);
+          loadedTextures[index] = null;
+          loadedCount++;
+          if (loadedCount === 3) {
+            setTextures([...loadedTextures]);
+          }
+        }
+      );
+    });
+  }, []);
+  
+  return textures;
+};
+
 const SessionWorld = () => {
-  const { players, localIdRef, sendMove } = useMultiplayer();
+  const { players, enemies, localIdRef, sendMove, sendAttack } = useMultiplayer();
   const sendPositionRef = useRef(new THREE.Vector3(0, AVATAR_HEIGHT, 0));
+  const faceTextures = useEnemyFaceTextures();
 
   const remotePlayers = useMemo(
     () => players.filter((player) => player.id && player.id !== localIdRef.current),
     [players]
   );
+  
   const handleMove = useCallback(
     (position, quaternion) => {
       sendPositionRef.current.set(position.x, AVATAR_HEIGHT, position.z);
       sendMove(sendPositionRef.current, quaternion);
     },
     [sendMove]
+  );
+
+  const handleAttack = useCallback(
+    (enemyId) => {
+      sendAttack(enemyId);
+    },
+    [sendAttack]
   );
 
   return (
@@ -1359,19 +1424,37 @@ const SessionWorld = () => {
           rotation={player.rotation || { x: 0, y: 0, z: 0, w: 1 }}
         />
       ))}
+      {/* Enemies */}
+      {enemies.map((enemy) => (
+        <Enemy
+          key={enemy.id}
+          id={enemy.id}
+          x={enemy.x}
+          y={enemy.y}
+          z={enemy.z}
+          alive={enemy.alive}
+          faceIndex={enemy.faceIndex}
+          faceTextures={faceTextures}
+        />
+      ))}
+      {/* VR Sword */}
+      <VRSword onAttack={handleAttack} enemies={enemies} />
       <MovementRig onMove={handleMove} />
     </>
   );
 };
 
-const FlatSessionWorld = ({ leftAxisRef, rightAxisRef, enablePointerLock }) => {
-  const { players, localIdRef, sendMove } = useMultiplayer();
+const FlatSessionWorld = ({ leftAxisRef, rightAxisRef, enablePointerLock, isMobile }) => {
+  const { camera } = useThree();
+  const { players, enemies, localIdRef, sendMove, sendAttack } = useMultiplayer();
   const sendPositionRef = useRef(new THREE.Vector3(0, AVATAR_HEIGHT, 0));
+  const faceTextures = useEnemyFaceTextures();
 
   const remotePlayers = useMemo(
     () => players.filter((player) => player.id && player.id !== localIdRef.current),
     [players]
   );
+  
   const handleMove = useCallback(
     (position, quaternion) => {
       sendPositionRef.current.set(position.x, AVATAR_HEIGHT, position.z);
@@ -1379,6 +1462,12 @@ const FlatSessionWorld = ({ leftAxisRef, rightAxisRef, enablePointerLock }) => {
     },
     [sendMove]
   );
+
+  // Raycast attack handler
+  const performRaycastAttack = useRaycastAttack(camera, enemies, sendAttack);
+  
+  // Attack input handling
+  const { isAttacking } = useAttackInput(isMobile, false, performRaycastAttack);
 
   return (
     <>
@@ -1390,6 +1479,21 @@ const FlatSessionWorld = ({ leftAxisRef, rightAxisRef, enablePointerLock }) => {
           rotation={player.rotation || { x: 0, y: 0, z: 0, w: 1 }}
         />
       ))}
+      {/* Enemies */}
+      {enemies.map((enemy) => (
+        <Enemy
+          key={enemy.id}
+          id={enemy.id}
+          x={enemy.x}
+          y={enemy.y}
+          z={enemy.z}
+          alive={enemy.alive}
+          faceIndex={enemy.faceIndex}
+          faceTextures={faceTextures}
+        />
+      ))}
+      {/* FPS-style sword */}
+      <FlatSword onAttack={sendAttack} isAttacking={isAttacking} />
       <FlatControls
         onMove={handleMove}
         leftAxisRef={leftAxisRef}
@@ -1431,7 +1535,7 @@ const RendererConfig = () => {
   return null;
 };
 
-const Scene = ({ store, onSessionChange, onReady, flatControls, xrEnabled = true }) => {
+const Scene = ({ store, onSessionChange, onReady, flatControls, xrEnabled = true, isMobile = false }) => {
   const handleCreated = useCallback((state) => {
     // Configure renderer on creation for proper lighting
     state.gl.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1475,6 +1579,7 @@ const Scene = ({ store, onSessionChange, onReady, flatControls, xrEnabled = true
             leftAxisRef={flatControls?.leftAxisRef}
             rightAxisRef={flatControls?.rightAxisRef}
             enablePointerLock={Boolean(flatControls?.enablePointerLock)}
+            isMobile={isMobile}
           />
         ) : null}
       </Canvas>
