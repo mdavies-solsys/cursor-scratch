@@ -32,7 +32,7 @@ deployment configuration.
 
 When working on a pull request, **create and maintain a history file** to capture useful context:
 
-1. **Create a file** in `history/` named after your branch (e.g., `history/feature-my-feature.md`)
+1. **Create a file** in `history/` with a timestamp prefix and branch name (e.g., `history/20260123-1430-feature-my-feature.md`)
 2. **Document as you work**:
    - Problem being solved
    - Key findings from investigation/analysis
