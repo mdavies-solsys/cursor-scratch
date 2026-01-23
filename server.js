@@ -9,6 +9,20 @@ const HTTP_PORT = 3000;
 const WS_PORT = 4000;
 const SYNC_MESSAGE = "move";
 
+// Enemy configuration - matching Scene.jsx dimensions
+const HALL_SCALE = 5;
+const SCALE = (value) => value * HALL_SCALE;
+const HALL_WIDTH = SCALE(44 * 5);
+const HALL_LENGTH = SCALE(110 * 5);
+const HALL_HALF_WIDTH = HALL_WIDTH / 2;
+const HALL_HALF_LENGTH = HALL_LENGTH / 2;
+const ENEMY_BOUNDARY_MARGIN = 50; // Keep enemies away from walls
+const ENEMY_COUNT = 3;
+const ENEMY_SPEED = 2; // units per second
+const ENEMY_UPDATE_INTERVAL = 50; // ms
+const ENEMY_DIRECTION_CHANGE_INTERVAL = 3000; // ms - change direction every 3 seconds
+const RESPAWN_DELAY = 5000; // ms - wait before respawning all enemies
+
 const servePath = path.join(__dirname, "node_modules", ".bin", "serve");
 const staticServer = spawn(servePath, ["-s", "dist", "-l", String(HTTP_PORT)], {
   stdio: "inherit",
@@ -22,10 +36,154 @@ const wsServer = http.createServer(app);
 const wss = new WebSocketServer({ server: wsServer });
 const players = new Map();
 
+// Enemy state management
+const enemies = new Map();
+let respawnPending = false;
+
 const randomColor = () =>
   `#${Math.floor(Math.random() * 0xffffff)
     .toString(16)
     .padStart(6, "0")}`;
+
+// Initialize enemy with random position and direction
+const createEnemy = (id, faceIndex) => {
+  const limitX = HALL_HALF_WIDTH - ENEMY_BOUNDARY_MARGIN;
+  const limitZ = HALL_HALF_LENGTH - ENEMY_BOUNDARY_MARGIN;
+  
+  // Random angle for movement direction
+  const angle = Math.random() * Math.PI * 2;
+  
+  return {
+    id,
+    x: (Math.random() - 0.5) * 2 * limitX,
+    y: 0, // Ground level
+    z: (Math.random() - 0.5) * 2 * limitZ,
+    alive: true,
+    faceIndex, // Which profile picture to use (0, 1, or 2)
+    directionX: Math.cos(angle),
+    directionZ: Math.sin(angle),
+    lastDirectionChange: Date.now(),
+  };
+};
+
+// Initialize all enemies
+const initializeEnemies = () => {
+  enemies.clear();
+  for (let i = 0; i < ENEMY_COUNT; i++) {
+    const id = `enemy-${i}`;
+    enemies.set(id, createEnemy(id, i));
+  }
+  respawnPending = false;
+};
+
+// Update enemy position (server-side AI)
+const updateEnemyPosition = (enemy, deltaSeconds) => {
+  if (!enemy.alive) return;
+  
+  const now = Date.now();
+  
+  // Change direction periodically
+  if (now - enemy.lastDirectionChange > ENEMY_DIRECTION_CHANGE_INTERVAL) {
+    const angle = Math.random() * Math.PI * 2;
+    enemy.directionX = Math.cos(angle);
+    enemy.directionZ = Math.sin(angle);
+    enemy.lastDirectionChange = now;
+  }
+  
+  // Move enemy
+  const moveX = enemy.directionX * ENEMY_SPEED * deltaSeconds;
+  const moveZ = enemy.directionZ * ENEMY_SPEED * deltaSeconds;
+  
+  enemy.x += moveX;
+  enemy.z += moveZ;
+  
+  // Boundary check - bounce off walls
+  const limitX = HALL_HALF_WIDTH - ENEMY_BOUNDARY_MARGIN;
+  const limitZ = HALL_HALF_LENGTH - ENEMY_BOUNDARY_MARGIN;
+  
+  if (enemy.x < -limitX || enemy.x > limitX) {
+    enemy.directionX *= -1;
+    enemy.x = Math.max(-limitX, Math.min(limitX, enemy.x));
+  }
+  if (enemy.z < -limitZ || enemy.z > limitZ) {
+    enemy.directionZ *= -1;
+    enemy.z = Math.max(-limitZ, Math.min(limitZ, enemy.z));
+  }
+};
+
+// Check if all enemies are dead and trigger respawn
+const checkRespawn = () => {
+  if (respawnPending) return;
+  
+  const allDead = Array.from(enemies.values()).every(e => !e.alive);
+  if (allDead) {
+    respawnPending = true;
+    console.log(`All enemies eliminated! Respawning in ${RESPAWN_DELAY / 1000} seconds...`);
+    setTimeout(() => {
+      initializeEnemies();
+      broadcastEnemyState();
+      console.log("Enemies respawned!");
+    }, RESPAWN_DELAY);
+  }
+};
+
+// Handle attack from player
+const handleAttack = (enemyId, playerId) => {
+  const enemy = enemies.get(enemyId);
+  if (!enemy || !enemy.alive) return false;
+  
+  enemy.alive = false;
+  console.log(`Player ${playerId} eliminated ${enemyId}`);
+  
+  broadcastEnemyState();
+  checkRespawn();
+  
+  return true;
+};
+
+// Get enemy state for broadcasting
+const getEnemyState = () => {
+  return Array.from(enemies.values()).map(e => ({
+    id: e.id,
+    x: e.x,
+    y: e.y,
+    z: e.z,
+    alive: e.alive,
+    faceIndex: e.faceIndex,
+  }));
+};
+
+// Broadcast enemy state to all clients
+const broadcastEnemyState = () => {
+  const payload = JSON.stringify({
+    type: "enemies",
+    enemies: getEnemyState(),
+  });
+  wss.clients.forEach((client) => {
+    if (client.readyState === client.OPEN) {
+      client.send(payload);
+    }
+  });
+};
+
+// Initialize enemies on server start
+initializeEnemies();
+
+// Enemy update loop
+let lastEnemyUpdate = Date.now();
+const enemyUpdateLoop = setInterval(() => {
+  const now = Date.now();
+  const deltaSeconds = (now - lastEnemyUpdate) / 1000;
+  lastEnemyUpdate = now;
+  
+  // Update each enemy's position
+  for (const enemy of enemies.values()) {
+    updateEnemyPosition(enemy, deltaSeconds);
+  }
+  
+  // Broadcast updated positions
+  broadcastEnemyState();
+}, ENEMY_UPDATE_INTERVAL);
 
 const broadcastState = () => {
   const payload = JSON.stringify({
@@ -49,12 +207,14 @@ wss.on("connection", (socket) => {
   };
   players.set(id, player);
 
+  // Send welcome message with player info and current enemy state
   socket.send(
     JSON.stringify({
       type: "welcome",
       id: player.id,
       color: player.color,
       players: Array.from(players.values()),
+      enemies: getEnemyState(),
     })
   );
 
@@ -65,20 +225,31 @@ wss.on("connection", (socket) => {
     } catch (error) {
       return;
     }
-    if (payload?.type !== SYNC_MESSAGE) {
+    
+    // Handle player movement
+    if (payload?.type === SYNC_MESSAGE) {
+      const existing = players.get(id);
+      if (!existing) {
+        return;
+      }
+      if (payload.position) {
+        existing.position = payload.position;
+      }
+      if (payload.rotation) {
+        existing.rotation = payload.rotation;
+      }
+      broadcastState();
       return;
     }
-    const existing = players.get(id);
-    if (!existing) {
+    
+    // Handle attack
+    if (payload?.type === "attack") {
+      const enemyId = payload.enemyId;
+      if (enemyId) {
+        handleAttack(enemyId, id);
+      }
       return;
     }
-    if (payload.position) {
-      existing.position = payload.position;
-    }
-    if (payload.rotation) {
-      existing.rotation = payload.rotation;
-    }
-    broadcastState();
   });
 
   socket.on("close", () => {
@@ -92,6 +263,7 @@ wsServer.listen(WS_PORT, () => {
 });
 
 const shutdown = () => {
+  clearInterval(enemyUpdateLoop);
   staticServer.kill("SIGTERM");
   wss.close(() => {
     wsServer.close(() => {
