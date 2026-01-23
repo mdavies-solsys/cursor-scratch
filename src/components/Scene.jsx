@@ -202,7 +202,7 @@ const buildCanvasTexture = (canvas, repeat, isColorTexture) => {
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
   texture.repeat.set(repeat[0], repeat[1]);
-  texture.anisotropy = 8;
+  texture.anisotropy = 8;  // B2: Reduced from 16 for performance
   if (isColorTexture) {
     texture.colorSpace = THREE.SRGBColorSpace;
   }
@@ -232,10 +232,10 @@ const createTexturedMaterial = ({
   const roughnessMap = buildCanvasTexture(grainCanvas, repeat, false);
   const bumpMap = buildCanvasTexture(grainCanvas, repeat, false);
   
-  // Set higher anisotropy for better quality at oblique angles
-  map.anisotropy = 16;
-  roughnessMap.anisotropy = 16;
-  bumpMap.anisotropy = 16;
+  // B2: Reduced anisotropy from 16 to 8 for performance (subtle visual impact at oblique angles)
+  map.anisotropy = 8;
+  roughnessMap.anisotropy = 8;
+  bumpMap.anisotropy = 8;
 
   return new THREE.MeshStandardMaterial({
     color: baseColor,
@@ -280,14 +280,14 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
   const topRef = useRef();
   const detailRingRefs = useRef([]);
 
-  const segments = 24;  // Original quality
+  const segments = 16;  // B4: Reduced from 24 for performance (subtle visual impact up close)
   const count = positions.length;
   
   // Pre-create geometries
   const geometries = useMemo(() => ({
     base: new THREE.CylinderGeometry(SCALE(1.6), SCALE(1.8), COLUMN_BASE_HEIGHT, segments),
     ring: new THREE.CylinderGeometry(SCALE(1.45), SCALE(1.6), COLUMN_RING_HEIGHT, segments),
-    shaft: new THREE.CylinderGeometry(SCALE(1.15), SCALE(1.25), COLUMN_SHAFT_HEIGHT, 32),  // Higher for shaft
+    shaft: new THREE.CylinderGeometry(SCALE(1.15), SCALE(1.25), COLUMN_SHAFT_HEIGHT, segments),  // B4: Reduced from 32
     cap: new THREE.BoxGeometry(SCALE(2.6), COLUMN_CAP_HEIGHT, SCALE(2.6)),
     top: new THREE.BoxGeometry(SCALE(2.9), COLUMN_TOP_HEIGHT, SCALE(2.9)),
     detailRing: new THREE.CylinderGeometry(SCALE(1.28), SCALE(1.28), SCALE(0.12), segments),
@@ -703,9 +703,10 @@ const World = () => {
   }, []);
 
   const columnPositions = useMemo(() => {
-    // Column spacing - maintain similar visual density as original
-    const columnSpacingX = SCALE(28);  // Spacing between column rows
-    const columnSpacingZ = SCALE(25);  // Spacing between columns along length
+    // C5: Increased spacing to ~1.5x for ~60 columns (was ~130)
+    // This creates a more open feel while maintaining grand hall aesthetic
+    const columnSpacingX = SCALE(42);  // 1.5x original (was SCALE(28))
+    const columnSpacingZ = SCALE(38);  // 1.5x original (was SCALE(25))
     
     // Calculate number of columns needed to fill the expanded room
     const numColumnsX = Math.floor((HALL_WIDTH - SCALE(16)) / columnSpacingX);  // Leave margin from walls
@@ -754,42 +755,40 @@ const World = () => {
     return positions;
   }, []);
   
-  // Ceiling lights spread throughout the expanded hall
-  const ceilingLightZPositions = useMemo(() => {
-    const spacing = SCALE(50);  // Light every 50 scaled units
-    const count = Math.floor(HALL_LENGTH / spacing);
-    const positions = [];
-    for (let i = 0; i <= count; i++) {
-      positions.push(i * spacing - HALL_LENGTH / 2 + spacing / 2);
-    }
-    return positions;
-  }, []);
-  
-  // Ceiling light X positions to cover the wider room
-  const ceilingLightXPositions = useMemo(() => {
-    const spacing = SCALE(40);
-    const count = Math.floor((HALL_WIDTH - SCALE(20)) / spacing);
-    const positions = [];
-    for (let i = 0; i <= count; i++) {
-      const x = i * spacing - (count * spacing) / 2;
-      positions.push(x);
-    }
-    return positions;
-  }, []);
-  
+  // C1: Fixed 16-light configuration for performance (was ~87 dynamic lights)
+  // 8 ceiling lights (4x2 grid) + 8 wall sconces (4 per side)
   const ceilingLightY = HALL_HEIGHT - SCALE(4);
-  
-  // Wall sconce positions for additional fill lighting - expanded for larger room
-  const wallLightZPositions = useMemo(() => {
-    const spacing = SCALE(35);
-    const count = Math.floor(HALL_LENGTH / spacing);
-    const positions = [];
-    for (let i = 0; i <= count; i++) {
-      positions.push(i * spacing - HALL_LENGTH / 2 + spacing / 2);
-    }
-    return positions;
-  }, []);
   const wallLightY = SCALE(6);
+  
+  // Fixed ceiling light positions - 4x2 grid covering key areas
+  const fixedCeilingLights = useMemo(() => [
+    // Front section
+    { x: -SCALE(80), z: -SCALE(180) },
+    { x: SCALE(80), z: -SCALE(180) },
+    // Center-front
+    { x: -SCALE(80), z: -SCALE(60) },
+    { x: SCALE(80), z: -SCALE(60) },
+    // Center-back
+    { x: -SCALE(80), z: SCALE(60) },
+    { x: SCALE(80), z: SCALE(60) },
+    // Back section
+    { x: -SCALE(80), z: SCALE(180) },
+    { x: SCALE(80), z: SCALE(180) },
+  ], []);
+  
+  // Fixed wall sconce positions - 4 per side at key intervals
+  const fixedWallSconces = useMemo(() => [
+    // Left wall
+    { x: -HALL_HALF_WIDTH + SCALE(2), z: -SCALE(200) },
+    { x: -HALL_HALF_WIDTH + SCALE(2), z: -SCALE(65) },
+    { x: -HALL_HALF_WIDTH + SCALE(2), z: SCALE(65) },
+    { x: -HALL_HALF_WIDTH + SCALE(2), z: SCALE(200) },
+    // Right wall
+    { x: HALL_HALF_WIDTH - SCALE(2), z: -SCALE(200) },
+    { x: HALL_HALF_WIDTH - SCALE(2), z: -SCALE(65) },
+    { x: HALL_HALF_WIDTH - SCALE(2), z: SCALE(65) },
+    { x: HALL_HALF_WIDTH - SCALE(2), z: SCALE(200) },
+  ], []);
 
   // Longitudinal beam positions
   const longBeamXPositions = useMemo(() => {
@@ -804,11 +803,14 @@ const World = () => {
 
   return (
     <>
-      {/* Warm ambient light with candle-like yellow tint */}
-      <ambientLight intensity={1.2} color="#ffcc66" />
+      {/* C2: Atmospheric fog - near 300, far 1500 for depth and mystery */}
+      <fog attach="fog" args={["#1a1510", 300, 1500]} />
       
-      {/* Hemisphere light with warm candle tones */}
-      <hemisphereLight color="#ffdd88" groundColor="#553311" intensity={0.8} />
+      {/* C1: Increased ambient to compensate for fewer point lights */}
+      <ambientLight intensity={1.8} color="#ffcc66" />
+      
+      {/* C1: Increased hemisphere for better fill with fewer point lights */}
+      <hemisphereLight color="#ffdd88" groundColor="#553311" intensity={1.2} />
       
       {/* Main directional light with warm candlelight color */}
       <directionalLight
@@ -816,8 +818,8 @@ const World = () => {
         intensity={2.0}
         color="#ffbb55"
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
         shadow-camera-near={1}
         shadow-camera-far={RENDER_DISTANCE}
         shadow-camera-left={-HALL_HALF_WIDTH}
@@ -834,77 +836,54 @@ const World = () => {
         color="#ffaa44"
       />
       
-      {/* Candle-yellow ceiling point lights distributed across expanded room */}
-      {ceilingLightXPositions.map((x) =>
-        ceilingLightZPositions.map((z) => (
-          <pointLight
-            key={`ceiling-light-${x}-${z}`}
-            position={[x, ceilingLightY, z]}
-            intensity={1200}
-            distance={SCALE(120)}
-            decay={2}
-            color="#ffaa33"  /* Warm candle yellow */
-          />
-        ))
-      )}
-      
-      {/* Wall sconce lights - warm candle-like fill at eye level */}
-      {wallLightZPositions.map((z) => (
-        <React.Fragment key={`wall-lights-${z}`}>
-          <pointLight
-            position={[-HALL_HALF_WIDTH + SCALE(2), wallLightY, z]}
-            intensity={400}
-            distance={SCALE(60)}
-            decay={2}
-            color="#ff9922"  /* Deeper candle amber */
-          />
-          <pointLight
-            position={[HALL_HALF_WIDTH - SCALE(2), wallLightY, z]}
-            intensity={400}
-            distance={SCALE(60)}
-            decay={2}
-            color="#ff9922"  /* Deeper candle amber */
-          />
-        </React.Fragment>
+      {/* C1: Fixed 8 ceiling point lights (was ~55 dynamic) */}
+      {fixedCeilingLights.map((pos, i) => (
+        <pointLight
+          key={`ceiling-light-${i}`}
+          position={[pos.x, ceilingLightY, pos.z]}
+          intensity={2400}
+          distance={SCALE(200)}
+          decay={2}
+          color="#ffaa33"
+        />
       ))}
       
-      {/* Emissive ceiling light fixtures - candle-colored glowing panels */}
-      {ceilingLightXPositions.map((x) =>
-        ceilingLightZPositions.map((z) => (
-          <mesh key={`light-fixture-${x}-${z}`} position={[x, ceilingLightY + SCALE(0.5), z]}>
-            <boxGeometry args={[SCALE(4), SCALE(0.3), SCALE(4)]} />
-            <meshStandardMaterial
-              color="#ffcc66"
-              emissive="#ffaa33"
-              emissiveIntensity={3}
-              toneMapped={false}
-            />
-          </mesh>
-        ))
-      )}
+      {/* C1: Fixed 8 wall sconce lights (was ~32 dynamic) */}
+      {fixedWallSconces.map((pos, i) => (
+        <pointLight
+          key={`wall-sconce-${i}`}
+          position={[pos.x, wallLightY, pos.z]}
+          intensity={800}
+          distance={SCALE(100)}
+          decay={2}
+          color="#ff9922"
+        />
+      ))}
       
-      {/* Emissive wall sconce fixtures with candle glow */}
-      {wallLightZPositions.map((z) => (
-        <React.Fragment key={`sconce-fixture-${z}`}>
-          <mesh position={[-HALL_HALF_WIDTH + SCALE(1), wallLightY, z]}>
-            <boxGeometry args={[SCALE(0.4), SCALE(1.5), SCALE(1)]} />
-            <meshStandardMaterial
-              color="#ffbb55"
-              emissive="#ff9922"
-              emissiveIntensity={2.5}
-              toneMapped={false}
-            />
-          </mesh>
-          <mesh position={[HALL_HALF_WIDTH - SCALE(1), wallLightY, z]}>
-            <boxGeometry args={[SCALE(0.4), SCALE(1.5), SCALE(1)]} />
-            <meshStandardMaterial
-              color="#ffbb55"
-              emissive="#ff9922"
-              emissiveIntensity={2.5}
-              toneMapped={false}
-            />
-          </mesh>
-        </React.Fragment>
+      {/* Emissive ceiling light fixtures - only for the 8 fixed positions */}
+      {fixedCeilingLights.map((pos, i) => (
+        <mesh key={`light-fixture-${i}`} position={[pos.x, ceilingLightY + SCALE(0.5), pos.z]}>
+          <boxGeometry args={[SCALE(4), SCALE(0.3), SCALE(4)]} />
+          <meshStandardMaterial
+            color="#ffcc66"
+            emissive="#ffaa33"
+            emissiveIntensity={3}
+            toneMapped={false}
+          />
+        </mesh>
+      ))}
+      
+      {/* Emissive wall sconce fixtures - only for the 8 fixed positions */}
+      {fixedWallSconces.map((pos, i) => (
+        <mesh key={`sconce-fixture-${i}`} position={[pos.x < 0 ? pos.x + SCALE(1) : pos.x - SCALE(1), wallLightY, pos.z]}>
+          <boxGeometry args={[SCALE(0.4), SCALE(1.5), SCALE(1)]} />
+          <meshStandardMaterial
+            color="#ffbb55"
+            emissive="#ff9922"
+            emissiveIntensity={2.5}
+            toneMapped={false}
+          />
+        </mesh>
       ))}
       <group>
         <mesh position={[0, -FLOOR_THICKNESS / 2, 0]} receiveShadow material={materials.stoneDark}>
@@ -1363,6 +1342,8 @@ const Scene = ({ store, onSessionChange, onReady, flatControls, xrEnabled = true
   }, [onReady]);
 
   const flatActive = Boolean(flatControls?.active);
+
+  // Note: A6 demand-based rendering not applicable - continuous game with movement/multiplayer
 
   return (
     <div className="vr-scene">
