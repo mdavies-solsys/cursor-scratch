@@ -4,7 +4,7 @@ import { XR, useXR } from "@react-three/xr";
 import * as THREE from "three";
 
 const DEADZONE = 0.1;
-const MAX_SPEED = 3;
+const MAX_SPEED = 8;
 const LOOK_SPEED = 1.8;
 const MOUSE_SENSITIVITY = 0.0025;
 const CAMERA_HEIGHT = 1.6;
@@ -271,7 +271,14 @@ const COLUMN_SHAFT_Y = COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT + COLUMN_SHAFT_HE
 const COLUMN_CAP_Y = COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT + COLUMN_SHAFT_HEIGHT + COLUMN_CAP_HEIGHT / 2;
 const COLUMN_TOP_Y = COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT + COLUMN_SHAFT_HEIGHT + COLUMN_CAP_HEIGHT + COLUMN_TOP_HEIGHT / 2;
 
+// Seeded random number generator for consistent imperfections
+const seededRandom = (seed) => {
+  const x = Math.sin(seed * 12.9898 + seed * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
+
 // Instanced Columns - renders all columns with GPU instancing (pure performance optimization)
+// Now includes random tilts and position offsets for ruins aesthetic
 const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
   const baseRef = useRef();
   const ringRef = useRef();
@@ -283,55 +290,106 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
   const segments = 16;  // B4: Reduced from 24 for performance (subtle visual impact up close)
   const count = positions.length;
   
-  // Pre-create geometries
+  // Pre-create geometries (4x larger diameter for massive ruins columns)
   const geometries = useMemo(() => ({
-    base: new THREE.CylinderGeometry(SCALE(1.6), SCALE(1.8), COLUMN_BASE_HEIGHT, segments),
-    ring: new THREE.CylinderGeometry(SCALE(1.45), SCALE(1.6), COLUMN_RING_HEIGHT, segments),
-    shaft: new THREE.CylinderGeometry(SCALE(1.15), SCALE(1.25), COLUMN_SHAFT_HEIGHT, segments),  // B4: Reduced from 32
-    cap: new THREE.BoxGeometry(SCALE(2.6), COLUMN_CAP_HEIGHT, SCALE(2.6)),
-    top: new THREE.BoxGeometry(SCALE(2.9), COLUMN_TOP_HEIGHT, SCALE(2.9)),
-    detailRing: new THREE.CylinderGeometry(SCALE(1.28), SCALE(1.28), SCALE(0.12), segments),
+    base: new THREE.CylinderGeometry(SCALE(6.4), SCALE(7.2), COLUMN_BASE_HEIGHT, segments),
+    ring: new THREE.CylinderGeometry(SCALE(5.8), SCALE(6.4), COLUMN_RING_HEIGHT, segments),
+    shaft: new THREE.CylinderGeometry(SCALE(4.6), SCALE(5.0), COLUMN_SHAFT_HEIGHT, segments),  // B4: Reduced from 32
+    cap: new THREE.BoxGeometry(SCALE(10.4), COLUMN_CAP_HEIGHT, SCALE(10.4)),
+    top: new THREE.BoxGeometry(SCALE(11.6), COLUMN_TOP_HEIGHT, SCALE(11.6)),
+    detailRing: new THREE.CylinderGeometry(SCALE(5.12), SCALE(5.12), SCALE(0.12), segments),
   }), []);
 
-  // Set up instance matrices
+  // Generate random imperfections per column (seeded by position for consistency)
+  const columnImperfections = useMemo(() => {
+    return positions.map((pos, i) => {
+      const seed = pos[0] * 1000 + pos[2];
+      const tiltX = (seededRandom(seed) - 0.5) * 0.06;  // Random tilt ±0.03 radians
+      const tiltZ = (seededRandom(seed + 1) - 0.5) * 0.06;
+      const offsetX = (seededRandom(seed + 2) - 0.5) * SCALE(0.4);  // Small position offset
+      const offsetZ = (seededRandom(seed + 3) - 0.5) * SCALE(0.4);
+      const scaleVar = 0.92 + seededRandom(seed + 4) * 0.16;  // 92-108% scale variation
+      const heightVar = 0.85 + seededRandom(seed + 5) * 0.18;  // Some columns shorter (damaged)
+      return { tiltX, tiltZ, offsetX, offsetZ, scaleVar, heightVar };
+    });
+  }, [positions]);
+
+  // Set up instance matrices with imperfections
   useEffect(() => {
     const tempMatrix = new THREE.Matrix4();
     const tempPosition = new THREE.Vector3();
     const tempQuaternion = new THREE.Quaternion();
+    const tempEuler = new THREE.Euler();
     const tempScale = new THREE.Vector3(1, 1, 1);
 
     positions.forEach((pos, i) => {
-      // Base
+      const imp = columnImperfections[i];
+      const baseX = pos[0] + imp.offsetX;
+      const baseZ = pos[2] + imp.offsetZ;
+      
+      // Apply tilt to rotation
+      tempEuler.set(imp.tiltX, 0, imp.tiltZ);
+      tempQuaternion.setFromEuler(tempEuler);
+      tempScale.set(imp.scaleVar, 1, imp.scaleVar);
+
+      // Base (less tilt for grounded appearance)
       if (baseRef.current) {
-        tempPosition.set(pos[0], COLUMN_BASE_HEIGHT / 2, pos[2]);
+        tempPosition.set(baseX, COLUMN_BASE_HEIGHT / 2, baseZ);
+        tempEuler.set(imp.tiltX * 0.3, 0, imp.tiltZ * 0.3);
+        tempQuaternion.setFromEuler(tempEuler);
         tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
         baseRef.current.setMatrixAt(i, tempMatrix);
       }
 
       // Ring
       if (ringRef.current) {
-        tempPosition.set(pos[0], COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT / 2, pos[2]);
+        tempPosition.set(baseX, COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT / 2, baseZ);
+        tempEuler.set(imp.tiltX * 0.5, 0, imp.tiltZ * 0.5);
+        tempQuaternion.setFromEuler(tempEuler);
         tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
         ringRef.current.setMatrixAt(i, tempMatrix);
       }
 
-      // Shaft
+      // Shaft (full tilt, height variation for broken columns)
       if (shaftRef.current) {
-        tempPosition.set(pos[0], COLUMN_SHAFT_Y, pos[2]);
+        const shaftHeight = COLUMN_SHAFT_HEIGHT * imp.heightVar;
+        tempPosition.set(
+          baseX + Math.sin(imp.tiltZ) * shaftHeight * 0.5,
+          COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT + shaftHeight / 2,
+          baseZ + Math.sin(imp.tiltX) * shaftHeight * 0.5
+        );
+        tempEuler.set(imp.tiltX, 0, imp.tiltZ);
+        tempQuaternion.setFromEuler(tempEuler);
+        tempScale.set(imp.scaleVar, imp.heightVar, imp.scaleVar);
         tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
         shaftRef.current.setMatrixAt(i, tempMatrix);
       }
 
-      // Cap
+      // Cap (follows shaft tilt)
       if (capRef.current) {
-        tempPosition.set(pos[0], COLUMN_CAP_Y, pos[2]);
+        const shaftHeight = COLUMN_SHAFT_HEIGHT * imp.heightVar;
+        tempPosition.set(
+          baseX + Math.sin(imp.tiltZ) * shaftHeight,
+          COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT + shaftHeight + COLUMN_CAP_HEIGHT / 2,
+          baseZ + Math.sin(imp.tiltX) * shaftHeight
+        );
+        tempEuler.set(imp.tiltX * 1.2, seededRandom(i) * 0.1, imp.tiltZ * 1.2);
+        tempQuaternion.setFromEuler(tempEuler);
+        tempScale.set(imp.scaleVar, 1, imp.scaleVar);
         tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
         capRef.current.setMatrixAt(i, tempMatrix);
       }
 
-      // Top
+      // Top (more tilt at the peak)
       if (topRef.current) {
-        tempPosition.set(pos[0], COLUMN_TOP_Y, pos[2]);
+        const shaftHeight = COLUMN_SHAFT_HEIGHT * imp.heightVar;
+        tempPosition.set(
+          baseX + Math.sin(imp.tiltZ) * (shaftHeight + COLUMN_CAP_HEIGHT),
+          COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT + shaftHeight + COLUMN_CAP_HEIGHT + COLUMN_TOP_HEIGHT / 2,
+          baseZ + Math.sin(imp.tiltX) * (shaftHeight + COLUMN_CAP_HEIGHT)
+        );
+        tempEuler.set(imp.tiltX * 1.5, seededRandom(i + 100) * 0.15, imp.tiltZ * 1.5);
+        tempQuaternion.setFromEuler(tempEuler);
         tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
         topRef.current.setMatrixAt(i, tempMatrix);
       }
@@ -341,7 +399,16 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
       ringOffsets.forEach((ratio, ri) => {
         const ringRefEl = detailRingRefs.current[ri];
         if (ringRefEl) {
-          tempPosition.set(pos[0], COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT + ratio * COLUMN_SHAFT_HEIGHT, pos[2]);
+          const shaftHeight = COLUMN_SHAFT_HEIGHT * imp.heightVar;
+          const ringY = COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT + ratio * shaftHeight;
+          tempPosition.set(
+            baseX + Math.sin(imp.tiltZ) * ratio * shaftHeight,
+            ringY,
+            baseZ + Math.sin(imp.tiltX) * ratio * shaftHeight
+          );
+          tempEuler.set(imp.tiltX * (0.5 + ratio * 0.5), 0, imp.tiltZ * (0.5 + ratio * 0.5));
+          tempQuaternion.setFromEuler(tempEuler);
+          tempScale.set(imp.scaleVar, 1, imp.scaleVar);
           tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
           ringRefEl.setMatrixAt(i, tempMatrix);
         }
@@ -357,7 +424,7 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
     detailRingRefs.current.forEach(ref => {
       if (ref) ref.instanceMatrix.needsUpdate = true;
     });
-  }, [positions]);
+  }, [positions, columnImperfections]);
 
   return (
     <group>
@@ -400,6 +467,90 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
           castShadow
           receiveShadow
         />
+      ))}
+    </group>
+  );
+};
+
+// Floor debris and rubble for ruins aesthetic
+const FloorDebris = ({ stoneMaterial, count = 80 }) => {
+  const debrisPositions = useMemo(() => {
+    const positions = [];
+    for (let i = 0; i < count; i++) {
+      const seed = i * 137;
+      const x = (seededRandom(seed) - 0.5) * (HALL_WIDTH - SCALE(20));
+      const z = (seededRandom(seed + 1) - 0.5) * (HALL_LENGTH - SCALE(20));
+      const scale = 0.4 + seededRandom(seed + 2) * 1.2;
+      const rotY = seededRandom(seed + 3) * Math.PI * 2;
+      const rotX = (seededRandom(seed + 4) - 0.5) * 0.4;
+      const rotZ = (seededRandom(seed + 5) - 0.5) * 0.4;
+      const type = Math.floor(seededRandom(seed + 6) * 4);  // 0-3 for different shapes
+      positions.push({ x, z, scale, rotY, rotX, rotZ, type });
+    }
+    return positions;
+  }, [count]);
+
+  return (
+    <group>
+      {debrisPositions.map((debris, i) => {
+        const y = debris.scale * SCALE(0.3);  // Half-buried in floor
+        return (
+          <mesh
+            key={`debris-${i}`}
+            position={[debris.x, y, debris.z]}
+            rotation={[debris.rotX, debris.rotY, debris.rotZ]}
+            material={stoneMaterial}
+            castShadow
+            receiveShadow
+          >
+            {debris.type === 0 && (
+              <boxGeometry args={[SCALE(debris.scale * 1.5), SCALE(debris.scale * 0.8), SCALE(debris.scale * 1.2)]} />
+            )}
+            {debris.type === 1 && (
+              <cylinderGeometry args={[SCALE(debris.scale * 0.6), SCALE(debris.scale * 0.8), SCALE(debris.scale * 1.5), 8]} />
+            )}
+            {debris.type === 2 && (
+              <dodecahedronGeometry args={[SCALE(debris.scale * 0.7), 0]} />
+            )}
+            {debris.type === 3 && (
+              <tetrahedronGeometry args={[SCALE(debris.scale * 0.9), 0]} />
+            )}
+          </mesh>
+        );
+      })}
+    </group>
+  );
+};
+
+// Wall cracks and damage for ruins aesthetic
+const WallCracks = ({ side, material }) => {
+  const crackPositions = useMemo(() => {
+    const positions = [];
+    const crackCount = 12;
+    for (let i = 0; i < crackCount; i++) {
+      const seed = (side + 2) * 1000 + i * 137;
+      const z = (seededRandom(seed) - 0.5) * (HALL_LENGTH - SCALE(40));
+      const y = SCALE(2) + seededRandom(seed + 1) * (HALL_HEIGHT - SCALE(8));
+      const width = SCALE(0.3 + seededRandom(seed + 2) * 0.4);
+      const height = SCALE(1 + seededRandom(seed + 3) * 3);
+      const depth = SCALE(0.2 + seededRandom(seed + 4) * 0.3);
+      positions.push({ z, y, width, height, depth });
+    }
+    return positions;
+  }, [side]);
+
+  const x = side * (HALL_HALF_WIDTH - SCALE(0.3));
+
+  return (
+    <group>
+      {crackPositions.map((crack, i) => (
+        <mesh
+          key={`crack-${side}-${i}`}
+          position={[x, crack.y, crack.z]}
+          material={material}
+        >
+          <boxGeometry args={[crack.depth, crack.height, crack.width]} />
+        </mesh>
       ))}
     </group>
   );
@@ -640,77 +791,83 @@ const Doorway = ({ z, rotation, stoneMaterial, trimMaterial, metalMaterial }) =>
 
 const World = () => {
   const materials = useMemo(() => {
-    // Wall material with proper repeat for expanded room
+    // Wall material - weathered ruins aesthetic with more imperfections
     const stone = createTexturedMaterial({
-      baseColor: "#6a7078",
-      accentColor: "#5a6068",
+      baseColor: "#5a6058",  // Slightly greenish gray for aged stone
+      accentColor: "#4a5048",
       repeat: [WALL_REPEAT_H, WALL_REPEAT_V],
-      roughness: 0.75,
-      metalness: 0.08,
-      bumpScale: 0.25,
-      noiseStrength: 30,
-      veinCount: 20,
-      grainBase: 150,
-      grainVariance: 70,
-      textureSize: 512,
-    });
-    // Floor material with proper repeat to prevent stretching
-    const stoneDark = createTexturedMaterial({
-      baseColor: "#525860",
-      accentColor: "#484e55",
-      repeat: [FLOOR_REPEAT_X, FLOOR_REPEAT_Z],  // Scale with room size
-      roughness: 0.72,
+      roughness: 0.85,  // More weathered
       metalness: 0.05,
-      bumpScale: 0.35,  // Slightly more bump for floor detail
-      noiseStrength: 32,  // More noise for floor variation
-      veinCount: 25,  // More veins for realistic stone floor
+      bumpScale: 0.4,  // More pronounced surface detail
+      noiseStrength: 45,  // More noise for weathered look
+      veinCount: 35,  // More cracks and veins
       grainBase: 140,
-      grainVariance: 80,
+      grainVariance: 90,  // More variance for patchy weathering
       textureSize: 512,
     });
+    // Floor material - worn, cracked ancient stone
+    const stoneDark = createTexturedMaterial({
+      baseColor: "#454a48",  // Darker, aged floor
+      accentColor: "#3a3f3d",
+      repeat: [FLOOR_REPEAT_X, FLOOR_REPEAT_Z],  // Scale with room size
+      roughness: 0.82,  // More worn
+      metalness: 0.03,
+      bumpScale: 0.5,  // Deep cracks and wear patterns
+      noiseStrength: 50,  // Heavy weathering
+      veinCount: 40,  // Lots of cracks for ancient floor
+      grainBase: 130,
+      grainVariance: 100,
+      textureSize: 512,
+    });
+    // Trim material - aged architectural detail
     const stoneTrim = createTexturedMaterial({
-      baseColor: "#787e88",
-      accentColor: "#606670",
+      baseColor: "#686e68",  // Slightly greenish for moss/age
+      accentColor: "#505850",
       repeat: [12, 12],  // Fine detail for trim pieces
-      roughness: 0.68,
-      metalness: 0.12,
-      bumpScale: 0.2,
-      noiseStrength: 22,
-      veinCount: 12,
-      grainBase: 135,
-      grainVariance: 60,
+      roughness: 0.78,  // Weathered
+      metalness: 0.08,
+      bumpScale: 0.35,
+      noiseStrength: 35,
+      veinCount: 25,  // More detail for age
+      grainBase: 130,
+      grainVariance: 75,
       textureSize: 512,
     });
+    // Metal material - corroded, ancient
     const metal = createTexturedMaterial({
-      baseColor: "#7a8088",
-      accentColor: "#5a6068",
+      baseColor: "#5a6858",  // Oxidized greenish patina
+      accentColor: "#4a5848",
       repeat: [4, 4],
-      roughness: 0.4,
-      metalness: 0.75,
-      bumpScale: 0.15,
-      noiseStrength: 18,
-      veinCount: 8,
-      grainBase: 90,
-      grainVariance: 90,
+      roughness: 0.6,  // More corroded
+      metalness: 0.55,  // Less shiny due to corrosion
+      bumpScale: 0.3,
+      noiseStrength: 40,  // Corrosion texture
+      veinCount: 20,
+      grainBase: 100,
+      grainVariance: 100,
       textureSize: 512,
     });
+    // Dark void material for cracks
+    const voidMaterial = new THREE.MeshBasicMaterial({ color: "#0a0a08" });
+    
     return {
       stone,
       stoneDark,
       stoneTrim,
       metal,
+      voidMaterial,
     };
   }, []);
 
   const columnPositions = useMemo(() => {
-    // C5: Increased spacing to ~1.5x for ~60 columns (was ~130)
-    // This creates a more open feel while maintaining grand hall aesthetic
-    const columnSpacingX = SCALE(42);  // 1.5x original (was SCALE(28))
-    const columnSpacingZ = SCALE(38);  // 1.5x original (was SCALE(25))
+    // C5: Increased spacing for massive 4x diameter columns
+    // Wider spacing to accommodate the larger column footprint
+    const columnSpacingX = SCALE(60);  // Increased for 4x larger columns
+    const columnSpacingZ = SCALE(55);  // Increased for 4x larger columns
     
     // Calculate number of columns needed to fill the expanded room
-    const numColumnsX = Math.floor((HALL_WIDTH - SCALE(16)) / columnSpacingX);  // Leave margin from walls
-    const numColumnsZ = Math.floor((HALL_LENGTH - SCALE(20)) / columnSpacingZ);
+    const numColumnsX = Math.floor((HALL_WIDTH - SCALE(30)) / columnSpacingX);  // Leave margin from walls
+    const numColumnsZ = Math.floor((HALL_LENGTH - SCALE(30)) / columnSpacingZ);
     
     const positions = [];
     
@@ -720,8 +877,8 @@ const World = () => {
       const xOffset = (numColumnsX - 1) * columnSpacingX / 2;
       const x = xi * columnSpacingX - xOffset;
       
-      // Skip columns too close to center walkway (leave a corridor)
-      if (Math.abs(x) < SCALE(8)) continue;
+      // Skip columns too close to center walkway (leave a corridor for massive columns)
+      if (Math.abs(x) < SCALE(20)) continue;
       
       for (let zi = 0; zi < numColumnsZ; zi++) {
         const zOffset = (numColumnsZ - 1) * columnSpacingZ / 2;
@@ -804,19 +961,19 @@ const World = () => {
   return (
     <>
       {/* C2: Atmospheric fog - near 300, far 1500 for depth and mystery */}
-      <fog attach="fog" args={["#1a1510", 300, 1500]} />
+      <fog attach="fog" args={["#181812", 300, 1500]} />
       
-      {/* C1: Increased ambient to compensate for fewer point lights */}
-      <ambientLight intensity={1.8} color="#ffcc66" />
+      {/* C1: Increased ambient to compensate for fewer point lights - slight green tint for ruins */}
+      <ambientLight intensity={1.8} color="#d9d968" />
       
-      {/* C1: Increased hemisphere for better fill with fewer point lights */}
-      <hemisphereLight color="#ffdd88" groundColor="#553311" intensity={1.2} />
+      {/* C1: Increased hemisphere for better fill with fewer point lights - slight green tint */}
+      <hemisphereLight color="#d9dd78" groundColor="#3d4422" intensity={1.2} />
       
-      {/* Main directional light with warm candlelight color */}
+      {/* Main directional light with slight green tint for ancient ruins feel */}
       <directionalLight
         position={[0, HALL_HEIGHT - SCALE(2), 0]}
         intensity={2.0}
-        color="#ffbb55"
+        color="#d4c955"
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -829,14 +986,14 @@ const World = () => {
         shadow-bias={-0.0001}
       />
       
-      {/* Secondary fill light with warm amber tone */}
+      {/* Secondary fill light with slight green tint */}
       <directionalLight
         position={[-SCALE(10), SCALE(12), SCALE(20)]}
         intensity={0.6}
-        color="#ffaa44"
+        color="#d4b844"
       />
       
-      {/* C1: Fixed 8 ceiling point lights (was ~55 dynamic) */}
+      {/* C1: Fixed 8 ceiling point lights (was ~55 dynamic) - slight green tint */}
       {fixedCeilingLights.map((pos, i) => (
         <pointLight
           key={`ceiling-light-${i}`}
@@ -844,11 +1001,11 @@ const World = () => {
           intensity={2400}
           distance={SCALE(200)}
           decay={2}
-          color="#ffaa33"
+          color="#c9b833"
         />
       ))}
       
-      {/* C1: Fixed 8 wall sconce lights (was ~32 dynamic) */}
+      {/* C1: Fixed 8 wall sconce lights (was ~32 dynamic) - slight green tint */}
       {fixedWallSconces.map((pos, i) => (
         <pointLight
           key={`wall-sconce-${i}`}
@@ -856,30 +1013,30 @@ const World = () => {
           intensity={800}
           distance={SCALE(100)}
           decay={2}
-          color="#ff9922"
+          color="#c99922"
         />
       ))}
       
-      {/* Emissive ceiling light fixtures - only for the 8 fixed positions */}
+      {/* Emissive ceiling light fixtures - only for the 8 fixed positions - slight green tint */}
       {fixedCeilingLights.map((pos, i) => (
         <mesh key={`light-fixture-${i}`} position={[pos.x, ceilingLightY + SCALE(0.5), pos.z]}>
           <boxGeometry args={[SCALE(4), SCALE(0.3), SCALE(4)]} />
           <meshStandardMaterial
-            color="#ffcc66"
-            emissive="#ffaa33"
+            color="#d9d966"
+            emissive="#c9b833"
             emissiveIntensity={3}
             toneMapped={false}
           />
         </mesh>
       ))}
       
-      {/* Emissive wall sconce fixtures - only for the 8 fixed positions */}
+      {/* Emissive wall sconce fixtures - only for the 8 fixed positions - slight green tint */}
       {fixedWallSconces.map((pos, i) => (
         <mesh key={`sconce-fixture-${i}`} position={[pos.x < 0 ? pos.x + SCALE(1) : pos.x - SCALE(1), wallLightY, pos.z]}>
           <boxGeometry args={[SCALE(0.4), SCALE(1.5), SCALE(1)]} />
           <meshStandardMaterial
-            color="#ffbb55"
-            emissive="#ff9922"
+            color="#d4bb55"
+            emissive="#c99922"
             emissiveIntensity={2.5}
             toneMapped={false}
           />
@@ -934,6 +1091,10 @@ const World = () => {
         <WallRibs side={1} material={materials.stoneTrim} ribZPositions={ribZPositions} />
         <WallBands side={-1} material={materials.stoneTrim} />
         <WallBands side={1} material={materials.stoneTrim} />
+        {/* Ruins imperfections - debris and wall damage */}
+        <FloorDebris stoneMaterial={materials.stone} count={100} />
+        <WallCracks side={-1} material={materials.voidMaterial} />
+        <WallCracks side={1} material={materials.voidMaterial} />
         {beamZPositions.map((z) => (
           <mesh
             key={`beam-${z}`}
@@ -1358,8 +1519,8 @@ const Scene = ({ store, onSessionChange, onReady, flatControls, xrEnabled = true
         }}
       >
         <RendererConfig />
-        {/* Lighter background color - dark backgrounds make scenes feel darker */}
-        <color attach="background" args={["#1a1815"]} />
+        {/* Dark greenish background for ruins atmosphere */}
+        <color attach="background" args={["#12140f"]} />
         {xrEnabled ? (
           <XR store={store}>
             <World />
