@@ -3,58 +3,6 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { XR, useXR } from "@react-three/xr";
 import * as THREE from "three";
 
-// ============================================================================
-// PERFORMANCE CONFIGURATION
-// ============================================================================
-
-// Detect mobile/low-power devices
-const detectMobile = () => {
-  if (typeof window === "undefined") return false;
-  const ua = navigator.userAgent || "";
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-  const isLowPower = navigator.hardwareConcurrency ? navigator.hardwareConcurrency <= 4 : false;
-  const hasCoarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches;
-  return isMobile || isLowPower || hasCoarsePointer;
-};
-
-const IS_MOBILE = detectMobile();
-
-// Quality presets based on device capability
-const QUALITY_PRESETS = {
-  mobile: {
-    shadowMapSize: 512,
-    shadowsEnabled: false,  // Disable shadows on mobile for major perf gain
-    maxLights: 8,  // Drastically reduced
-    textureSize: 256,
-    anisotropy: 2,
-    cylinderSegments: 8,
-    columnDetailRings: false,
-    pixelRatio: Math.min(window?.devicePixelRatio || 1, 1.5),
-    antialias: false,
-    lightDistance: 150,  // Shorter light range
-    enableEmissiveMeshes: false,  // Skip decorative light fixtures
-  },
-  desktop: {
-    shadowMapSize: 1024,  // Reduced from 2048 for better perf
-    shadowsEnabled: true,
-    maxLights: 24,  // Still reduced significantly
-    textureSize: 512,
-    anisotropy: 8,
-    cylinderSegments: 16,
-    columnDetailRings: true,
-    pixelRatio: Math.min(window?.devicePixelRatio || 1, 2),
-    antialias: true,
-    lightDistance: 300,
-    enableEmissiveMeshes: true,
-  },
-};
-
-const QUALITY = IS_MOBILE ? QUALITY_PRESETS.mobile : QUALITY_PRESETS.desktop;
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
 const DEADZONE = 0.1;
 const MAX_SPEED = 3;
 const LOOK_SPEED = 1.8;
@@ -73,10 +21,9 @@ const SCALE = (value) => value * HALL_SCALE;
 const HALL_WIDTH = SCALE(44 * 5);  // 5x original width
 const HALL_LENGTH = SCALE(110 * 5);  // 5x original length
 const HALL_HEIGHT = SCALE(16);
-// Render distance - use fog to hide distant areas instead of rendering everything
-const RENDER_DISTANCE = IS_MOBILE ? SCALE(200) : SCALE(400);
-const FOG_NEAR = IS_MOBILE ? SCALE(30) : SCALE(60);
-const FOG_FAR = IS_MOBILE ? SCALE(150) : SCALE(300);
+// Render distance based on largest room dimension
+const MAX_ROOM_DIMENSION = Math.max(HALL_WIDTH, HALL_LENGTH, HALL_HEIGHT);
+const RENDER_DISTANCE = MAX_ROOM_DIMENSION * 1.5;
 const WALL_THICKNESS = SCALE(1.6);
 const FLOOR_THICKNESS = SCALE(1.2);
 const CEILING_THICKNESS = SCALE(1.1);
@@ -271,24 +218,10 @@ const createTexturedMaterial = ({
   veinCount = 18,
   grainBase = 140,
   grainVariance = 70,
-  textureSize = QUALITY.textureSize,  // Use quality preset
+  textureSize = 512,  // Higher resolution for better quality
 }) => {
   if (typeof document === "undefined") {
     return new THREE.MeshStandardMaterial({ color: baseColor, roughness, metalness });
-  }
-
-  // On mobile, use simpler materials without bump maps for performance
-  if (IS_MOBILE) {
-    const diffuseCanvas = createNoiseCanvas(textureSize, baseColor, accentColor, noiseStrength, veinCount);
-    const map = buildCanvasTexture(diffuseCanvas, repeat, true);
-    map.anisotropy = QUALITY.anisotropy;
-    
-    return new THREE.MeshStandardMaterial({
-      color: baseColor,
-      map,
-      roughness,
-      metalness,
-    });
   }
 
   const diffuseCanvas = createNoiseCanvas(textureSize, baseColor, accentColor, noiseStrength, veinCount);
@@ -297,10 +230,10 @@ const createTexturedMaterial = ({
   const roughnessMap = buildCanvasTexture(grainCanvas, repeat, false);
   const bumpMap = buildCanvasTexture(grainCanvas, repeat, false);
   
-  // Use quality-appropriate anisotropy
-  map.anisotropy = QUALITY.anisotropy;
-  roughnessMap.anisotropy = QUALITY.anisotropy;
-  bumpMap.anisotropy = QUALITY.anisotropy;
+  // Set higher anisotropy for better quality at oblique angles
+  map.anisotropy = 16;
+  roughnessMap.anisotropy = 16;
+  bumpMap.anisotropy = 16;
 
   return new THREE.MeshStandardMaterial({
     color: baseColor,
@@ -336,7 +269,7 @@ const COLUMN_SHAFT_Y = COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT + COLUMN_SHAFT_HE
 const COLUMN_CAP_Y = COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT + COLUMN_SHAFT_HEIGHT + COLUMN_CAP_HEIGHT / 2;
 const COLUMN_TOP_Y = COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT + COLUMN_SHAFT_HEIGHT + COLUMN_CAP_HEIGHT + COLUMN_TOP_HEIGHT / 2;
 
-// Instanced Columns - renders all columns with GPU instancing (major performance gain)
+// Instanced Columns - renders all columns with GPU instancing (pure performance optimization)
 const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
   const baseRef = useRef();
   const ringRef = useRef();
@@ -345,18 +278,18 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
   const topRef = useRef();
   const detailRingRefs = useRef([]);
 
-  const segments = QUALITY.cylinderSegments;
+  const segments = 24;  // Original quality
   const count = positions.length;
   
   // Pre-create geometries
   const geometries = useMemo(() => ({
     base: new THREE.CylinderGeometry(SCALE(1.6), SCALE(1.8), COLUMN_BASE_HEIGHT, segments),
     ring: new THREE.CylinderGeometry(SCALE(1.45), SCALE(1.6), COLUMN_RING_HEIGHT, segments),
-    shaft: new THREE.CylinderGeometry(SCALE(1.15), SCALE(1.25), COLUMN_SHAFT_HEIGHT, segments),
+    shaft: new THREE.CylinderGeometry(SCALE(1.15), SCALE(1.25), COLUMN_SHAFT_HEIGHT, 32),  // Higher for shaft
     cap: new THREE.BoxGeometry(SCALE(2.6), COLUMN_CAP_HEIGHT, SCALE(2.6)),
     top: new THREE.BoxGeometry(SCALE(2.9), COLUMN_TOP_HEIGHT, SCALE(2.9)),
     detailRing: new THREE.CylinderGeometry(SCALE(1.28), SCALE(1.28), SCALE(0.12), segments),
-  }), [segments]);
+  }), []);
 
   // Set up instance matrices
   useEffect(() => {
@@ -401,18 +334,16 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
         topRef.current.setMatrixAt(i, tempMatrix);
       }
 
-      // Detail rings (only on desktop)
-      if (QUALITY.columnDetailRings) {
-        const ringOffsets = [0.2, 0.5, 0.8];
-        ringOffsets.forEach((ratio, ri) => {
-          const ringRef = detailRingRefs.current[ri];
-          if (ringRef) {
-            tempPosition.set(pos[0], COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT + ratio * COLUMN_SHAFT_HEIGHT, pos[2]);
-            tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
-            ringRef.setMatrixAt(i, tempMatrix);
-          }
-        });
-      }
+      // Detail rings
+      const ringOffsets = [0.2, 0.5, 0.8];
+      ringOffsets.forEach((ratio, ri) => {
+        const ringRefEl = detailRingRefs.current[ri];
+        if (ringRefEl) {
+          tempPosition.set(pos[0], COLUMN_BASE_HEIGHT + COLUMN_RING_HEIGHT + ratio * COLUMN_SHAFT_HEIGHT, pos[2]);
+          tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
+          ringRefEl.setMatrixAt(i, tempMatrix);
+        }
+      });
     });
 
     // Update instance matrices
@@ -431,41 +362,41 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
       <instancedMesh
         ref={baseRef}
         args={[geometries.base, stoneMaterial, count]}
-        castShadow={QUALITY.shadowsEnabled}
-        receiveShadow={QUALITY.shadowsEnabled}
+        castShadow
+        receiveShadow
       />
       <instancedMesh
         ref={ringRef}
         args={[geometries.ring, trimMaterial, count]}
-        castShadow={QUALITY.shadowsEnabled}
-        receiveShadow={QUALITY.shadowsEnabled}
+        castShadow
+        receiveShadow
       />
       <instancedMesh
         ref={shaftRef}
         args={[geometries.shaft, stoneMaterial, count]}
-        castShadow={QUALITY.shadowsEnabled}
-        receiveShadow={QUALITY.shadowsEnabled}
+        castShadow
+        receiveShadow
       />
       <instancedMesh
         ref={capRef}
         args={[geometries.cap, trimMaterial, count]}
-        castShadow={QUALITY.shadowsEnabled}
-        receiveShadow={QUALITY.shadowsEnabled}
+        castShadow
+        receiveShadow
       />
       <instancedMesh
         ref={topRef}
         args={[geometries.top, trimMaterial, count]}
-        castShadow={QUALITY.shadowsEnabled}
-        receiveShadow={QUALITY.shadowsEnabled}
+        castShadow
+        receiveShadow
       />
-      {/* Detail rings only on desktop */}
-      {QUALITY.columnDetailRings && [0, 1, 2].map((ri) => (
+      {/* Detail rings */}
+      {[0, 1, 2].map((ri) => (
         <instancedMesh
           key={`detail-ring-${ri}`}
           ref={(el) => { detailRingRefs.current[ri] = el; }}
           args={[geometries.detailRing, trimMaterial, count]}
-          castShadow={false}
-          receiveShadow={false}
+          castShadow
+          receiveShadow
         />
       ))}
     </group>
@@ -588,24 +519,26 @@ const World = () => {
       veinCount: 20,
       grainBase: 150,
       grainVariance: 70,
+      textureSize: 512,
     });
     // Floor material with proper repeat to prevent stretching
     const stoneDark = createTexturedMaterial({
       baseColor: "#525860",
       accentColor: "#484e55",
-      repeat: [FLOOR_REPEAT_X, FLOOR_REPEAT_Z],
+      repeat: [FLOOR_REPEAT_X, FLOOR_REPEAT_Z],  // Scale with room size
       roughness: 0.72,
       metalness: 0.05,
-      bumpScale: 0.35,
-      noiseStrength: 32,
-      veinCount: 25,
+      bumpScale: 0.35,  // Slightly more bump for floor detail
+      noiseStrength: 32,  // More noise for floor variation
+      veinCount: 25,  // More veins for realistic stone floor
       grainBase: 140,
       grainVariance: 80,
+      textureSize: 512,
     });
     const stoneTrim = createTexturedMaterial({
       baseColor: "#787e88",
       accentColor: "#606670",
-      repeat: [12, 12],
+      repeat: [12, 12],  // Fine detail for trim pieces
       roughness: 0.68,
       metalness: 0.12,
       bumpScale: 0.2,
@@ -613,6 +546,7 @@ const World = () => {
       veinCount: 12,
       grainBase: 135,
       grainVariance: 60,
+      textureSize: 512,
     });
     const metal = createTexturedMaterial({
       baseColor: "#7a8088",
@@ -625,6 +559,7 @@ const World = () => {
       veinCount: 8,
       grainBase: 90,
       grainVariance: 90,
+      textureSize: 512,
     });
     return {
       stone,
@@ -635,23 +570,24 @@ const World = () => {
   }, []);
 
   const columnPositions = useMemo(() => {
-    // Column spacing - increased for better performance with larger room
-    const columnSpacingX = SCALE(IS_MOBILE ? 56 : 40);  // Wider spacing on mobile
-    const columnSpacingZ = SCALE(IS_MOBILE ? 50 : 35);
+    // Column spacing - maintain similar visual density as original
+    const columnSpacingX = SCALE(28);  // Spacing between column rows
+    const columnSpacingZ = SCALE(25);  // Spacing between columns along length
     
-    // Calculate number of columns needed
-    const numColumnsX = Math.floor((HALL_WIDTH - SCALE(16)) / columnSpacingX);
+    // Calculate number of columns needed to fill the expanded room
+    const numColumnsX = Math.floor((HALL_WIDTH - SCALE(16)) / columnSpacingX);  // Leave margin from walls
     const numColumnsZ = Math.floor((HALL_LENGTH - SCALE(20)) / columnSpacingZ);
     
     const positions = [];
     
     // Generate column positions symmetrically
     for (let xi = 0; xi < numColumnsX; xi++) {
+      // Center the columns, leaving space from walls
       const xOffset = (numColumnsX - 1) * columnSpacingX / 2;
       const x = xi * columnSpacingX - xOffset;
       
-      // Skip columns too close to center walkway
-      if (Math.abs(x) < SCALE(10)) continue;
+      // Skip columns too close to center walkway (leave a corridor)
+      if (Math.abs(x) < SCALE(8)) continue;
       
       for (let zi = 0; zi < numColumnsZ; zi++) {
         const zOffset = (numColumnsZ - 1) * columnSpacingZ / 2;
@@ -663,9 +599,9 @@ const World = () => {
     return positions;
   }, []);
 
-  // Generate rib positions - reduced density on mobile
+  // Generate rib positions to cover the expanded room
   const ribZPositions = useMemo(() => {
-    const spacing = SCALE(IS_MOBILE ? 64 : 40);
+    const spacing = SCALE(32);
     const count = Math.floor(HALL_LENGTH / spacing);
     const positions = [];
     for (let i = 0; i <= count; i++) {
@@ -674,9 +610,9 @@ const World = () => {
     return positions;
   }, []);
   
-  // Generate beam positions - reduced on mobile
+  // Generate beam positions for expanded room
   const beamZPositions = useMemo(() => {
-    const spacing = SCALE(IS_MOBILE ? 80 : 50);
+    const spacing = SCALE(40);
     const count = Math.floor(HALL_LENGTH / spacing);
     const positions = [];
     for (let i = 0; i <= count; i++) {
@@ -685,49 +621,46 @@ const World = () => {
     return positions;
   }, []);
   
-  // OPTIMIZED LIGHTING: Dramatically reduced light count
-  // Instead of many lights, use fewer but more strategic placements
-  const lightPositions = useMemo(() => {
-    // Limit total lights based on quality preset
-    const maxLights = QUALITY.maxLights;
-    
-    // Calculate optimal grid for available light budget
-    // Reserve some lights for wall sconces
-    const ceilingLightBudget = Math.floor(maxLights * 0.7);
-    const wallLightBudget = maxLights - ceilingLightBudget;
-    
-    // Ceiling light grid
-    const ceilingGridSize = Math.ceil(Math.sqrt(ceilingLightBudget));
-    const ceilingSpacingX = HALL_WIDTH / (ceilingGridSize + 1);
-    const ceilingSpacingZ = HALL_LENGTH / (ceilingGridSize + 1);
-    
-    const ceilingLights = [];
-    for (let xi = 1; xi <= ceilingGridSize; xi++) {
-      for (let zi = 1; zi <= ceilingGridSize; zi++) {
-        if (ceilingLights.length >= ceilingLightBudget) break;
-        const x = xi * ceilingSpacingX - HALL_WIDTH / 2;
-        const z = zi * ceilingSpacingZ - HALL_LENGTH / 2;
-        ceilingLights.push({ x, z });
-      }
+  // Ceiling lights spread throughout the expanded hall
+  const ceilingLightZPositions = useMemo(() => {
+    const spacing = SCALE(50);  // Light every 50 scaled units
+    const count = Math.floor(HALL_LENGTH / spacing);
+    const positions = [];
+    for (let i = 0; i <= count; i++) {
+      positions.push(i * spacing - HALL_LENGTH / 2 + spacing / 2);
     }
-    
-    // Wall sconce lights - just a few along the length
-    const wallLightSpacing = HALL_LENGTH / (Math.floor(wallLightBudget / 2) + 1);
-    const wallLights = [];
-    for (let i = 1; i <= Math.floor(wallLightBudget / 2); i++) {
-      const z = i * wallLightSpacing - HALL_LENGTH / 2;
-      wallLights.push(z);
+    return positions;
+  }, []);
+  
+  // Ceiling light X positions to cover the wider room
+  const ceilingLightXPositions = useMemo(() => {
+    const spacing = SCALE(40);
+    const count = Math.floor((HALL_WIDTH - SCALE(20)) / spacing);
+    const positions = [];
+    for (let i = 0; i <= count; i++) {
+      const x = i * spacing - (count * spacing) / 2;
+      positions.push(x);
     }
-    
-    return { ceilingLights, wallLights };
+    return positions;
   }, []);
   
   const ceilingLightY = HALL_HEIGHT - SCALE(4);
+  
+  // Wall sconce positions for additional fill lighting - expanded for larger room
+  const wallLightZPositions = useMemo(() => {
+    const spacing = SCALE(35);
+    const count = Math.floor(HALL_LENGTH / spacing);
+    const positions = [];
+    for (let i = 0; i <= count; i++) {
+      positions.push(i * spacing - HALL_LENGTH / 2 + spacing / 2);
+    }
+    return positions;
+  }, []);
   const wallLightY = SCALE(6);
 
-  // Longitudinal beam positions - reduced on mobile
+  // Longitudinal beam positions
   const longBeamXPositions = useMemo(() => {
-    const beamSpacing = SCALE(IS_MOBILE ? 50 : 30);
+    const beamSpacing = SCALE(25);
     const numBeams = Math.floor((HALL_WIDTH - SCALE(20)) / beamSpacing);
     const positions = [];
     for (let i = 0; i <= numBeams; i++) {
@@ -738,88 +671,88 @@ const World = () => {
 
   return (
     <>
-      {/* Fog for depth and to hide distant geometry - major mobile perf gain */}
-      <fog attach="fog" args={["#1a1510", FOG_NEAR, FOG_FAR]} />
+      {/* Warm ambient light with candle-like yellow tint */}
+      <ambientLight intensity={1.2} color="#ffcc66" />
       
-      {/* OPTIMIZED LIGHTING SYSTEM */}
-      {/* Higher ambient to compensate for fewer point lights */}
-      <ambientLight intensity={IS_MOBILE ? 1.8 : 1.4} color="#ffcc66" />
+      {/* Hemisphere light with warm candle tones */}
+      <hemisphereLight color="#ffdd88" groundColor="#553311" intensity={0.8} />
       
-      {/* Hemisphere light for natural fill */}
-      <hemisphereLight color="#ffdd88" groundColor="#553311" intensity={IS_MOBILE ? 1.2 : 0.9} />
-      
-      {/* Main directional light - shadows only on desktop */}
+      {/* Main directional light with warm candlelight color */}
       <directionalLight
         position={[0, HALL_HEIGHT - SCALE(2), 0]}
-        intensity={IS_MOBILE ? 2.5 : 2.0}
+        intensity={2.0}
         color="#ffbb55"
-        castShadow={QUALITY.shadowsEnabled}
-        shadow-mapSize-width={QUALITY.shadowMapSize}
-        shadow-mapSize-height={QUALITY.shadowMapSize}
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
         shadow-camera-near={1}
-        shadow-camera-far={FOG_FAR}
-        shadow-camera-left={-SCALE(100)}
-        shadow-camera-right={SCALE(100)}
-        shadow-camera-top={SCALE(100)}
-        shadow-camera-bottom={-SCALE(100)}
-        shadow-bias={-0.0005}
+        shadow-camera-far={RENDER_DISTANCE}
+        shadow-camera-left={-HALL_HALF_WIDTH}
+        shadow-camera-right={HALL_HALF_WIDTH}
+        shadow-camera-top={HALL_HALF_LENGTH}
+        shadow-camera-bottom={-HALL_HALF_LENGTH}
+        shadow-bias={-0.0001}
       />
       
-      {/* Secondary fill light */}
+      {/* Secondary fill light with warm amber tone */}
       <directionalLight
         position={[-SCALE(10), SCALE(12), SCALE(20)]}
-        intensity={IS_MOBILE ? 0.8 : 0.6}
+        intensity={0.6}
         color="#ffaa44"
       />
       
-      {/* OPTIMIZED: Limited ceiling point lights */}
-      {lightPositions.ceilingLights.map((pos, i) => (
-        <pointLight
-          key={`ceiling-light-${i}`}
-          position={[pos.x, ceilingLightY, pos.z]}
-          intensity={IS_MOBILE ? 2000 : 1500}
-          distance={QUALITY.lightDistance}
-          decay={2}
-          color="#ffaa33"
-        />
-      ))}
+      {/* Candle-yellow ceiling point lights distributed across expanded room */}
+      {ceilingLightXPositions.map((x) =>
+        ceilingLightZPositions.map((z) => (
+          <pointLight
+            key={`ceiling-light-${x}-${z}`}
+            position={[x, ceilingLightY, z]}
+            intensity={1200}
+            distance={SCALE(120)}
+            decay={2}
+            color="#ffaa33"  /* Warm candle yellow */
+          />
+        ))
+      )}
       
-      {/* OPTIMIZED: Limited wall sconce lights */}
-      {lightPositions.wallLights.map((z, i) => (
-        <React.Fragment key={`wall-lights-${i}`}>
+      {/* Wall sconce lights - warm candle-like fill at eye level */}
+      {wallLightZPositions.map((z) => (
+        <React.Fragment key={`wall-lights-${z}`}>
           <pointLight
             position={[-HALL_HALF_WIDTH + SCALE(2), wallLightY, z]}
-            intensity={IS_MOBILE ? 800 : 500}
-            distance={QUALITY.lightDistance * 0.5}
+            intensity={400}
+            distance={SCALE(60)}
             decay={2}
-            color="#ff9922"
+            color="#ff9922"  /* Deeper candle amber */
           />
           <pointLight
             position={[HALL_HALF_WIDTH - SCALE(2), wallLightY, z]}
-            intensity={IS_MOBILE ? 800 : 500}
-            distance={QUALITY.lightDistance * 0.5}
+            intensity={400}
+            distance={SCALE(60)}
             decay={2}
-            color="#ff9922"
+            color="#ff9922"  /* Deeper candle amber */
           />
         </React.Fragment>
       ))}
       
-      {/* Emissive light fixtures - ONLY on desktop */}
-      {QUALITY.enableEmissiveMeshes && lightPositions.ceilingLights.map((pos, i) => (
-        <mesh key={`light-fixture-${i}`} position={[pos.x, ceilingLightY + SCALE(0.5), pos.z]}>
-          <boxGeometry args={[SCALE(4), SCALE(0.3), SCALE(4)]} />
-          <meshStandardMaterial
-            color="#ffcc66"
-            emissive="#ffaa33"
-            emissiveIntensity={3}
-            toneMapped={false}
-          />
-        </mesh>
-      ))}
+      {/* Emissive ceiling light fixtures - candle-colored glowing panels */}
+      {ceilingLightXPositions.map((x) =>
+        ceilingLightZPositions.map((z) => (
+          <mesh key={`light-fixture-${x}-${z}`} position={[x, ceilingLightY + SCALE(0.5), z]}>
+            <boxGeometry args={[SCALE(4), SCALE(0.3), SCALE(4)]} />
+            <meshStandardMaterial
+              color="#ffcc66"
+              emissive="#ffaa33"
+              emissiveIntensity={3}
+              toneMapped={false}
+            />
+          </mesh>
+        ))
+      )}
       
-      {/* Emissive wall sconces - ONLY on desktop */}
-      {QUALITY.enableEmissiveMeshes && lightPositions.wallLights.map((z, i) => (
-        <React.Fragment key={`sconce-fixture-${i}`}>
+      {/* Emissive wall sconce fixtures with candle glow */}
+      {wallLightZPositions.map((z) => (
+        <React.Fragment key={`sconce-fixture-${z}`}>
           <mesh position={[-HALL_HALF_WIDTH + SCALE(1), wallLightY, z]}>
             <boxGeometry args={[SCALE(0.4), SCALE(1.5), SCALE(1)]} />
             <meshStandardMaterial
@@ -840,46 +773,34 @@ const World = () => {
           </mesh>
         </React.Fragment>
       ))}
-      
       <group>
-        {/* Floor */}
-        <mesh position={[0, -FLOOR_THICKNESS / 2, 0]} receiveShadow={QUALITY.shadowsEnabled} material={materials.stoneDark}>
+        <mesh position={[0, -FLOOR_THICKNESS / 2, 0]} receiveShadow material={materials.stoneDark}>
           <boxGeometry args={[HALL_WIDTH + SCALE(6), FLOOR_THICKNESS, HALL_LENGTH + SCALE(6)]} />
         </mesh>
-        
-        {/* Center floor trim - only on desktop */}
-        {!IS_MOBILE && (
-          <mesh position={[0, SCALE(0.06), 0]} receiveShadow material={materials.stoneTrim}>
-            <boxGeometry args={[SCALE(6.5), SCALE(0.12), HALL_LENGTH - SCALE(12)]} />
-          </mesh>
-        )}
-        
-        {/* Ceiling */}
+        <mesh position={[0, SCALE(0.06), 0]} receiveShadow material={materials.stoneTrim}>
+          <boxGeometry args={[SCALE(6.5), SCALE(0.12), HALL_LENGTH - SCALE(12)]} />
+        </mesh>
         <mesh
           position={[0, HALL_HEIGHT + CEILING_THICKNESS / 2, 0]}
-          receiveShadow={QUALITY.shadowsEnabled}
+          receiveShadow
           material={materials.stone}
         >
           <boxGeometry args={[HALL_WIDTH + SCALE(6), CEILING_THICKNESS, HALL_LENGTH + SCALE(6)]} />
         </mesh>
-        
-        {/* Walls */}
         <mesh
           position={[-HALL_HALF_WIDTH - WALL_THICKNESS / 2, HALL_HEIGHT / 2, 0]}
-          receiveShadow={QUALITY.shadowsEnabled}
+          receiveShadow
           material={materials.stone}
         >
           <boxGeometry args={[WALL_THICKNESS, HALL_HEIGHT, HALL_LENGTH]} />
         </mesh>
         <mesh
           position={[HALL_HALF_WIDTH + WALL_THICKNESS / 2, HALL_HEIGHT / 2, 0]}
-          receiveShadow={QUALITY.shadowsEnabled}
+          receiveShadow
           material={materials.stone}
         >
           <boxGeometry args={[WALL_THICKNESS, HALL_HEIGHT, HALL_LENGTH]} />
         </mesh>
-        
-        {/* Doorways */}
         <Doorway
           z={-HALL_HALF_LENGTH - WALL_THICKNESS / 2}
           rotation={0}
@@ -894,46 +815,34 @@ const World = () => {
           trimMaterial={materials.stoneTrim}
           metalMaterial={materials.metal}
         />
-        
-        {/* OPTIMIZED: Instanced columns instead of individual meshes */}
+        {/* GPU Instanced columns - pure performance optimization */}
         <InstancedColumns
           positions={columnPositions}
           stoneMaterial={materials.stone}
           trimMaterial={materials.stoneTrim}
         />
-        
-        {/* Wall ribs - reduced on mobile */}
         <WallRibs side={-1} material={materials.stoneTrim} ribZPositions={ribZPositions} />
         <WallRibs side={1} material={materials.stoneTrim} ribZPositions={ribZPositions} />
-        
-        {/* Wall bands - only on desktop */}
-        {!IS_MOBILE && (
-          <>
-            <WallBands side={-1} material={materials.stoneTrim} />
-            <WallBands side={1} material={materials.stoneTrim} />
-          </>
-        )}
-        
-        {/* Cross beams */}
+        <WallBands side={-1} material={materials.stoneTrim} />
+        <WallBands side={1} material={materials.stoneTrim} />
         {beamZPositions.map((z) => (
           <mesh
             key={`beam-${z}`}
             position={[0, HALL_HEIGHT - SCALE(0.6), z]}
-            castShadow={QUALITY.shadowsEnabled}
-            receiveShadow={QUALITY.shadowsEnabled}
+            castShadow
+            receiveShadow
             material={materials.stoneTrim}
           >
             <boxGeometry args={[HALL_WIDTH - SCALE(2), SCALE(0.5), SCALE(1.6)]} />
           </mesh>
         ))}
-        
-        {/* Longitudinal ceiling beams */}
+        {/* Longitudinal ceiling beams distributed across the wider hall */}
         {longBeamXPositions.map((x) => (
           <mesh
             key={`long-beam-${x}`}
             position={[x, HALL_HEIGHT - SCALE(0.9), 0]}
-            castShadow={QUALITY.shadowsEnabled}
-            receiveShadow={QUALITY.shadowsEnabled}
+            castShadow
+            receiveShadow
             material={materials.stoneTrim}
           >
             <boxGeometry args={[SCALE(1.2), SCALE(0.6), HALL_LENGTH - SCALE(40)]} />
@@ -1301,15 +1210,11 @@ const RendererConfig = () => {
   const { gl } = useThree();
   
   React.useEffect(() => {
+    // Use NoToneMapping to prevent ACES from darkening the scene
+    // Or use ACESFilmicToneMapping with higher exposure
     gl.toneMapping = THREE.ACESFilmicToneMapping;
-    gl.toneMappingExposure = IS_MOBILE ? 1.8 : 1.5;
+    gl.toneMappingExposure = 1.5; // Increase exposure to brighten overall scene
     gl.outputColorSpace = THREE.SRGBColorSpace;
-    
-    // Log quality settings for debugging (remove in production)
-    if (typeof console !== "undefined") {
-      console.log(`[Scene] Quality mode: ${IS_MOBILE ? "MOBILE" : "DESKTOP"}`);
-      console.log(`[Scene] Max lights: ${QUALITY.maxLights}, Shadows: ${QUALITY.shadowsEnabled}`);
-    }
   }, [gl]);
   
   return null;
@@ -1319,13 +1224,8 @@ const Scene = ({ store, onSessionChange, onReady, flatControls, xrEnabled = true
   const handleCreated = useCallback((state) => {
     // Configure renderer on creation for proper lighting
     state.gl.toneMapping = THREE.ACESFilmicToneMapping;
-    state.gl.toneMappingExposure = IS_MOBILE ? 1.8 : 1.5;  // Brighter on mobile to compensate
+    state.gl.toneMappingExposure = 1.5;
     state.gl.outputColorSpace = THREE.SRGBColorSpace;
-    
-    // Performance optimizations
-    if (IS_MOBILE) {
-      state.gl.powerPreference = "high-performance";
-    }
     
     if (onReady) {
       onReady();
@@ -1337,21 +1237,18 @@ const Scene = ({ store, onSessionChange, onReady, flatControls, xrEnabled = true
   return (
     <div className="vr-scene">
       <Canvas
-        shadows={QUALITY.shadowsEnabled}
+        shadows
         onCreated={handleCreated}
         camera={{ position: [0, 1.6, 3], fov: 60, near: 0.1, far: RENDER_DISTANCE }}
-        dpr={QUALITY.pixelRatio}  // Device pixel ratio capping
         gl={{ 
-          antialias: QUALITY.antialias,
+          antialias: true,
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: IS_MOBILE ? 1.8 : 1.5,
-          powerPreference: IS_MOBILE ? "high-performance" : "default",
+          toneMappingExposure: 1.5,
         }}
-        performance={{ min: 0.5 }}  // Allow frame rate throttling
       >
         <RendererConfig />
-        {/* Background color matches fog for seamless fade */}
-        <color attach="background" args={["#1a1510"]} />
+        {/* Lighter background color - dark backgrounds make scenes feel darker */}
+        <color attach="background" args={["#1a1815"]} />
         {xrEnabled ? (
           <XR store={store}>
             <World />
