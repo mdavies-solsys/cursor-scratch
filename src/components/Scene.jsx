@@ -292,21 +292,19 @@ const InstancedColumns = ({ positions, stoneMaterial, trimMaterial }) => {
   const count = positions.length;
   
   // Pre-create geometries - SQUARE cathedral columns
-  // Profile: Wide plinth -> base molding -> NARROW shaft -> capital -> wide abacus
-  // FIXED: Shaft is now 45% of base width (was 60%) for dramatically visible tapering
-  // FIXED: Base and capital are now taller so the width difference is actually visible
+  // Profile: Modest plinth -> base molding -> shaft -> capital -> modest abacus
+  // Base and top are wider than shaft but not dramatically so - subtle classical proportions
   const geometries = useMemo(() => ({
-    // Plinth (base) - widest at bottom for stability
-    base: new THREE.BoxGeometry(SCALE(12.0), COLUMN_BASE_HEIGHT, SCALE(12.0)),
+    // Plinth (base) - slightly wider than shaft for visual grounding
+    base: new THREE.BoxGeometry(SCALE(7.0), COLUMN_BASE_HEIGHT, SCALE(7.0)),
     // Base molding - transition between plinth and shaft
-    ring: new THREE.BoxGeometry(SCALE(8.0), COLUMN_RING_HEIGHT, SCALE(8.0)),
-    // Main shaft - MUCH narrower than base and capital for visible cathedral silhouette
-    // At 5.5 vs 12.0, the shaft is about 46% of base width - very visible tapering
+    ring: new THREE.BoxGeometry(SCALE(6.2), COLUMN_RING_HEIGHT, SCALE(6.2)),
+    // Main shaft - the primary column body
     shaft: new THREE.BoxGeometry(SCALE(5.5), COLUMN_SHAFT_HEIGHT, SCALE(5.5)),
-    // Capital - widens dramatically from shaft back toward base width
-    cap: new THREE.BoxGeometry(SCALE(8.0), COLUMN_CAP_HEIGHT, SCALE(8.0)),
-    // Abacus (top) - widest at top to support ceiling structure
-    top: new THREE.BoxGeometry(SCALE(12.0), COLUMN_TOP_HEIGHT, SCALE(12.0)),
+    // Capital - subtle widening from shaft
+    cap: new THREE.BoxGeometry(SCALE(6.2), COLUMN_CAP_HEIGHT, SCALE(6.2)),
+    // Abacus (top) - slightly wider to support ceiling, matching base
+    top: new THREE.BoxGeometry(SCALE(7.0), COLUMN_TOP_HEIGHT, SCALE(7.0)),
   }), []);
 
   // Generate random imperfections per column (seeded by position for consistency)
@@ -737,18 +735,18 @@ const World = () => {
       grainVariance: 90,  // More variance for patchy weathering
       textureSize: 512,
     });
-    // Floor material - worn, cracked ancient stone
+    // Floor material - dirt/earth floor with no reflection at all
     const stoneDark = createTexturedMaterial({
-      baseColor: "#454a48",  // Darker, aged floor
-      accentColor: "#3a3f3d",
+      baseColor: "#3d3830",  // Earthy brown-gray for dirt
+      accentColor: "#2e2a24",  // Darker earth tones
       repeat: [FLOOR_REPEAT_X, FLOOR_REPEAT_Z],  // Scale with room size
-      roughness: 0.82,  // More worn
-      metalness: 0.03,
-      bumpScale: 0.5,  // Deep cracks and wear patterns
-      noiseStrength: 50,  // Heavy weathering
-      veinCount: 40,  // Lots of cracks for ancient floor
-      grainBase: 130,
-      grainVariance: 100,
+      roughness: 1.0,  // Completely matte - dirt has no reflection
+      metalness: 0.0,  // Zero metalness - pure diffuse surface like dirt
+      bumpScale: 0.6,  // Irregular dirt surface
+      noiseStrength: 60,  // Heavy variation for natural dirt look
+      veinCount: 25,  // Some cracks but less structured than stone
+      grainBase: 110,
+      grainVariance: 120,  // High variance for patchy dirt
       textureSize: 512,
     });
     // Trim material - aged architectural detail
