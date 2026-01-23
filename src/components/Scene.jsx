@@ -390,11 +390,13 @@ const Doorway = ({ z, rotation, stoneMaterial, trimMaterial, metalMaterial }) =>
 
 const World = () => {
   const materials = useMemo(() => {
+    // BRIGHTENED material colors - original colors were too dark (#3a3f45 etc.)
+    // absorbing most light. Increased base colors by ~40-60% luminance.
     const stone = createTexturedMaterial({
-      baseColor: "#3a3f45",
-      accentColor: "#2b2f33",
+      baseColor: "#6a7078",
+      accentColor: "#5a6068",
       repeat: [4, 4],
-      roughness: 0.92,
+      roughness: 0.75,
       metalness: 0.08,
       bumpScale: 0.25,
       noiseStrength: 30,
@@ -403,10 +405,10 @@ const World = () => {
       grainVariance: 70,
     });
     const stoneDark = createTexturedMaterial({
-      baseColor: "#2a2e33",
-      accentColor: "#23272c",
+      baseColor: "#525860",
+      accentColor: "#484e55",
       repeat: [6, 6],
-      roughness: 0.9,
+      roughness: 0.72,
       metalness: 0.05,
       bumpScale: 0.3,
       noiseStrength: 26,
@@ -415,10 +417,10 @@ const World = () => {
       grainVariance: 80,
     });
     const stoneTrim = createTexturedMaterial({
-      baseColor: "#474d54",
-      accentColor: "#32363c",
+      baseColor: "#787e88",
+      accentColor: "#606670",
       repeat: [3, 3],
-      roughness: 0.85,
+      roughness: 0.68,
       metalness: 0.12,
       bumpScale: 0.2,
       noiseStrength: 22,
@@ -427,11 +429,11 @@ const World = () => {
       grainVariance: 60,
     });
     const metal = createTexturedMaterial({
-      baseColor: "#4a4e54",
-      accentColor: "#2a2d31",
+      baseColor: "#7a8088",
+      accentColor: "#5a6068",
       repeat: [2, 2],
-      roughness: 0.45,
-      metalness: 0.8,
+      roughness: 0.4,
+      metalness: 0.75,
       bumpScale: 0.15,
       noiseStrength: 18,
       veinCount: 8,
@@ -460,36 +462,138 @@ const World = () => {
 
   const ribZPositions = useMemo(() => [-48, -32, -16, 0, 16, 32, 48].map(SCALE), []);
   const beamZPositions = useMemo(() => [-40, -20, 0, 20, 40].map(SCALE), []);
-  const ceilingLightZPositions = useMemo(() => [-30, 0, 30].map(SCALE), []);
-  const ceilingLightY = HALL_HEIGHT - SCALE(2.4);
+  // More ceiling lights spread throughout the hall for even coverage
+  const ceilingLightZPositions = useMemo(() => [-45, -30, -15, 0, 15, 30, 45].map(SCALE), []);
+  // Lower the ceiling lights to get better coverage (was too close to ceiling)
+  const ceilingLightY = HALL_HEIGHT - SCALE(4);
+  // Wall sconce positions for additional fill lighting
+  const wallLightZPositions = useMemo(() => [-40, -20, 0, 20, 40].map(SCALE), []);
+  const wallLightY = SCALE(6);
 
   return (
     <>
-      <ambientLight intensity={0.45} />
-      <hemisphereLight color="#f6e2c8" groundColor="#2f2a26" intensity={0.4} />
+      {/* SIGNIFICANTLY increased ambient light - interior spaces need strong ambient
+          Original 0.45 was far too low for an enclosed hall with dark materials */}
+      <ambientLight intensity={1.8} />
+      
+      {/* Increased hemisphere light for better sky/ground color blending */}
+      <hemisphereLight color="#fff5e6" groundColor="#4a4540" intensity={1.2} />
+      
+      {/* Directional light repositioned INSIDE the hall space, angled down
+          Original position was outside the walls, light couldn't enter */}
       <directionalLight
-        position={[SCALE(18), SCALE(24), SCALE(14)]}
-        intensity={1.05}
-        color="#f6d8b6"
+        position={[0, HALL_HEIGHT - SCALE(2), 0]}
+        intensity={2.5}
+        color="#fff8f0"
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
         shadow-camera-near={1}
-        shadow-camera-far={SCALE(110)}
-        shadow-camera-left={-SCALE(40)}
-        shadow-camera-right={SCALE(40)}
-        shadow-camera-top={SCALE(40)}
-        shadow-camera-bottom={-SCALE(40)}
+        shadow-camera-far={SCALE(120)}
+        shadow-camera-left={-HALL_HALF_WIDTH}
+        shadow-camera-right={HALL_HALF_WIDTH}
+        shadow-camera-top={HALL_HALF_LENGTH}
+        shadow-camera-bottom={-HALL_HALF_LENGTH}
+        shadow-bias={-0.0001}
       />
+      
+      {/* Secondary directional for fill - reduces harsh shadows */}
+      <directionalLight
+        position={[-SCALE(10), SCALE(12), SCALE(20)]}
+        intensity={0.8}
+        color="#e8f0ff"
+      />
+      
+      {/* MASSIVELY increased point light intensity - original 0.9 with decay=2
+          meant essentially zero light reached the floor in this huge space.
+          Physical light units: a 100W bulb ~1600 lumens. We need much higher
+          values for a space this large (550 units long, 80 units high) */}
       {ceilingLightZPositions.map((z) => (
         <pointLight
           key={`ceiling-light-${z}`}
           position={[0, ceilingLightY, z]}
-          intensity={0.9}
-          distance={SCALE(70)}
+          intensity={800}
+          distance={SCALE(100)}
           decay={2}
-          color="#f6d4aa"
+          color="#fff0dd"
         />
+      ))}
+      
+      {/* Additional row of ceiling lights along the sides for better coverage */}
+      {ceilingLightZPositions.map((z) => (
+        <React.Fragment key={`side-lights-${z}`}>
+          <pointLight
+            position={[-SCALE(12), ceilingLightY, z]}
+            intensity={400}
+            distance={SCALE(80)}
+            decay={2}
+            color="#fff0dd"
+          />
+          <pointLight
+            position={[SCALE(12), ceilingLightY, z]}
+            intensity={400}
+            distance={SCALE(80)}
+            decay={2}
+            color="#fff0dd"
+          />
+        </React.Fragment>
+      ))}
+      
+      {/* Wall sconce lights - warm fill light at eye level */}
+      {wallLightZPositions.map((z) => (
+        <React.Fragment key={`wall-lights-${z}`}>
+          <pointLight
+            position={[-HALL_HALF_WIDTH + SCALE(2), wallLightY, z]}
+            intensity={200}
+            distance={SCALE(40)}
+            decay={2}
+            color="#ffddaa"
+          />
+          <pointLight
+            position={[HALL_HALF_WIDTH - SCALE(2), wallLightY, z]}
+            intensity={200}
+            distance={SCALE(40)}
+            decay={2}
+            color="#ffddaa"
+          />
+        </React.Fragment>
+      ))}
+      
+      {/* Emissive ceiling light fixtures - visible glowing panels */}
+      {ceilingLightZPositions.map((z) => (
+        <mesh key={`light-fixture-${z}`} position={[0, ceilingLightY + SCALE(0.5), z]}>
+          <boxGeometry args={[SCALE(4), SCALE(0.3), SCALE(4)]} />
+          <meshStandardMaterial
+            color="#fff8ee"
+            emissive="#fff0dd"
+            emissiveIntensity={3}
+            toneMapped={false}
+          />
+        </mesh>
+      ))}
+      
+      {/* Emissive wall sconce fixtures */}
+      {wallLightZPositions.map((z) => (
+        <React.Fragment key={`sconce-fixture-${z}`}>
+          <mesh position={[-HALL_HALF_WIDTH + SCALE(1), wallLightY, z]}>
+            <boxGeometry args={[SCALE(0.4), SCALE(1.5), SCALE(1)]} />
+            <meshStandardMaterial
+              color="#fff0dd"
+              emissive="#ffddaa"
+              emissiveIntensity={2}
+              toneMapped={false}
+            />
+          </mesh>
+          <mesh position={[HALL_HALF_WIDTH - SCALE(1), wallLightY, z]}>
+            <boxGeometry args={[SCALE(0.4), SCALE(1.5), SCALE(1)]} />
+            <meshStandardMaterial
+              color="#fff0dd"
+              emissive="#ffddaa"
+              emissiveIntensity={2}
+              toneMapped={false}
+            />
+          </mesh>
+        </React.Fragment>
       ))}
       <group>
         <mesh position={[0, -FLOOR_THICKNESS / 2, 0]} receiveShadow material={materials.stoneDark}>
@@ -924,8 +1028,28 @@ const SessionGate = ({ onSessionChange }) => {
   return <SessionWorld />;
 };
 
+// Configure renderer for proper lighting display
+const RendererConfig = () => {
+  const { gl } = useThree();
+  
+  React.useEffect(() => {
+    // Use NoToneMapping to prevent ACES from darkening the scene
+    // Or use ACESFilmicToneMapping with higher exposure
+    gl.toneMapping = THREE.ACESFilmicToneMapping;
+    gl.toneMappingExposure = 1.5; // Increase exposure to brighten overall scene
+    gl.outputColorSpace = THREE.SRGBColorSpace;
+  }, [gl]);
+  
+  return null;
+};
+
 const Scene = ({ store, onSessionChange, onReady, flatControls, xrEnabled = true }) => {
-  const handleCreated = useCallback(() => {
+  const handleCreated = useCallback((state) => {
+    // Configure renderer on creation for proper lighting
+    state.gl.toneMapping = THREE.ACESFilmicToneMapping;
+    state.gl.toneMappingExposure = 1.5;
+    state.gl.outputColorSpace = THREE.SRGBColorSpace;
+    
     if (onReady) {
       onReady();
     }
@@ -939,8 +1063,15 @@ const Scene = ({ store, onSessionChange, onReady, flatControls, xrEnabled = true
         shadows
         onCreated={handleCreated}
         camera={{ position: [0, 1.6, 3], fov: 60, near: 0.1, far: 200 }}
+        gl={{ 
+          antialias: true,
+          toneMapping: THREE.ACESFilmicToneMapping,
+          toneMappingExposure: 1.5,
+        }}
       >
-        <color attach="background" args={["#15110e"]} />
+        <RendererConfig />
+        {/* Lighter background color - dark backgrounds make scenes feel darker */}
+        <color attach="background" args={["#1a1815"]} />
         {xrEnabled ? (
           <XR store={store}>
             <World />
