@@ -15,14 +15,16 @@ const REMOTE_LERP = 8;
 const AVATAR_HEIGHT = 0.9;
 const UP = new THREE.Vector3(0, 1, 0);
 const ZERO_AXIS = { x: 0, y: 0 };
-const HALL_WIDTH = 44;
-const HALL_LENGTH = 110;
-const HALL_HEIGHT = 16;
-const WALL_THICKNESS = 1.6;
-const FLOOR_THICKNESS = 1.2;
-const CEILING_THICKNESS = 1.1;
-const DOOR_WIDTH = 12;
-const DOOR_HEIGHT = 10;
+const HALL_SCALE = 5;
+const SCALE = (value) => value * HALL_SCALE;
+const HALL_WIDTH = SCALE(44);
+const HALL_LENGTH = SCALE(110);
+const HALL_HEIGHT = SCALE(16);
+const WALL_THICKNESS = SCALE(1.6);
+const FLOOR_THICKNESS = SCALE(1.2);
+const CEILING_THICKNESS = SCALE(1.1);
+const DOOR_WIDTH = SCALE(12);
+const DOOR_HEIGHT = SCALE(10);
 const BOUNDARY_MARGIN = 1.2;
 const HALL_HALF_WIDTH = HALL_WIDTH / 2;
 const HALL_HALF_LENGTH = HALL_LENGTH / 2;
@@ -257,27 +259,47 @@ const createTexturedMaterial = ({
   });
 };
 
-const Column = ({ position, stoneMaterial, trimMaterial }) => {
-  const baseHeight = 0.6;
-  const ringHeight = 0.3;
-  const shaftHeight = 7.6;
-  const capHeight = 0.8;
-  const topHeight = 0.4;
+const Column = ({ position, stoneMaterial, trimMaterial, lanternGlassMaterial, lanternFrameMaterial }) => {
+  const baseHeight = SCALE(0.6);
+  const ringHeight = SCALE(0.3);
+  const capHeight = SCALE(0.8);
+  const topHeight = SCALE(0.4);
+  const columnClearance = SCALE(0.1);
+  const totalHeight = Math.max(SCALE(6), HALL_HEIGHT - columnClearance);
+  const shaftHeight = Math.max(
+    SCALE(4),
+    totalHeight - baseHeight - ringHeight - capHeight - topHeight
+  );
   const shaftY = baseHeight + ringHeight + shaftHeight / 2;
   const capY = baseHeight + ringHeight + shaftHeight + capHeight / 2;
   const topY = baseHeight + ringHeight + shaftHeight + capHeight + topHeight / 2;
-  const ringOffsets = [1.4, 3.6, 5.8];
+  const ringOffsets = [0.2, 0.5, 0.8].map((ratio) => ratio * shaftHeight);
+  const shaftRadiusTop = SCALE(1.15);
+  const shaftRadiusBottom = SCALE(1.25);
+  const lanternBodyHeight = SCALE(1.1);
+  const lanternBodyRadius = SCALE(0.35);
+  const lanternCapHeight = SCALE(0.22);
+  const lanternCapRadius = SCALE(0.45);
+  const lanternSide = position[0] >= 0 ? -1 : 1;
+  const lanternOffset = shaftRadiusTop + lanternBodyRadius + SCALE(0.2);
+  const lanternHeight = baseHeight + ringHeight + shaftHeight * 0.55;
+  const lanternTopY = lanternBodyHeight / 2 + lanternCapHeight / 2;
+  const lanternBottomY = -lanternBodyHeight / 2 - lanternCapHeight / 2;
+  const bracketLength = SCALE(0.6);
+  const bracketThickness = SCALE(0.16);
+  const frameMaterial = lanternFrameMaterial ?? trimMaterial;
+  const glassMaterial = lanternGlassMaterial ?? trimMaterial;
 
   return (
     <group position={position}>
       <mesh position={[0, baseHeight / 2, 0]} castShadow receiveShadow material={stoneMaterial}>
-        <cylinderGeometry args={[1.6, 1.8, baseHeight, 24]} />
+        <cylinderGeometry args={[SCALE(1.6), SCALE(1.8), baseHeight, 24]} />
       </mesh>
       <mesh position={[0, baseHeight + ringHeight / 2, 0]} castShadow receiveShadow material={trimMaterial}>
-        <cylinderGeometry args={[1.45, 1.6, ringHeight, 24]} />
+        <cylinderGeometry args={[SCALE(1.45), SCALE(1.6), ringHeight, 24]} />
       </mesh>
       <mesh position={[0, shaftY, 0]} castShadow receiveShadow material={stoneMaterial}>
-        <cylinderGeometry args={[1.15, 1.25, shaftHeight, 32]} />
+        <cylinderGeometry args={[shaftRadiusTop, shaftRadiusBottom, shaftHeight, 32]} />
       </mesh>
       {ringOffsets.map((offset) => (
         <mesh
@@ -287,30 +309,54 @@ const Column = ({ position, stoneMaterial, trimMaterial }) => {
           receiveShadow
           material={trimMaterial}
         >
-          <cylinderGeometry args={[1.28, 1.28, 0.12, 24]} />
+          <cylinderGeometry args={[SCALE(1.28), SCALE(1.28), SCALE(0.12), 24]} />
         </mesh>
       ))}
       <mesh position={[0, capY, 0]} castShadow receiveShadow material={trimMaterial}>
-        <boxGeometry args={[2.6, capHeight, 2.6]} />
+        <boxGeometry args={[SCALE(2.6), capHeight, SCALE(2.6)]} />
       </mesh>
       <mesh position={[0, topY, 0]} castShadow receiveShadow material={trimMaterial}>
-        <boxGeometry args={[2.9, topHeight, 2.9]} />
+        <boxGeometry args={[SCALE(2.9), topHeight, SCALE(2.9)]} />
       </mesh>
+      <group position={[lanternSide * lanternOffset, lanternHeight, 0]}>
+        <mesh position={[-lanternSide * bracketLength / 2, 0, 0]} material={frameMaterial}>
+          <boxGeometry args={[bracketLength, bracketThickness, bracketThickness]} />
+        </mesh>
+        <mesh material={glassMaterial}>
+          <cylinderGeometry args={[lanternBodyRadius, lanternBodyRadius, lanternBodyHeight, 14]} />
+        </mesh>
+        <mesh position={[0, lanternTopY, 0]} material={frameMaterial}>
+          <cylinderGeometry args={[lanternCapRadius, lanternCapRadius, lanternCapHeight, 14]} />
+        </mesh>
+        <mesh position={[0, lanternBottomY, 0]} material={frameMaterial}>
+          <cylinderGeometry args={[lanternCapRadius, lanternCapRadius, lanternCapHeight, 14]} />
+        </mesh>
+        <mesh position={[0, lanternTopY + lanternCapHeight / 2 + SCALE(0.2), 0]} material={frameMaterial}>
+          <boxGeometry args={[SCALE(0.2), SCALE(0.35), SCALE(0.2)]} />
+        </mesh>
+        <pointLight
+          position={[0, 0, 0]}
+          intensity={1.4}
+          distance={SCALE(18)}
+          decay={2}
+          color="#f4c98b"
+        />
+      </group>
     </group>
   );
 };
 
 const WallRibs = ({ side, material, ribZPositions }) => {
-  const x = side * (HALL_HALF_WIDTH - 0.45);
+  const x = side * (HALL_HALF_WIDTH - SCALE(0.45));
   return (
     <group>
       {ribZPositions.map((z) => (
         <group key={`rib-${side}-${z}`} position={[x, 0, z]}>
-          <mesh position={[0, 3.2, 0]} castShadow receiveShadow material={material}>
-            <boxGeometry args={[0.9, 6.4, 1.8]} />
+          <mesh position={[0, SCALE(3.2), 0]} castShadow receiveShadow material={material}>
+            <boxGeometry args={[SCALE(0.9), SCALE(6.4), SCALE(1.8)]} />
           </mesh>
-          <mesh position={[0, 6.6, 0]} castShadow receiveShadow material={material}>
-            <boxGeometry args={[1.2, 0.6, 2.2]} />
+          <mesh position={[0, SCALE(6.6), 0]} castShadow receiveShadow material={material}>
+            <boxGeometry args={[SCALE(1.2), SCALE(0.6), SCALE(2.2)]} />
           </mesh>
         </group>
       ))}
@@ -319,17 +365,17 @@ const WallRibs = ({ side, material, ribZPositions }) => {
 };
 
 const WallBands = ({ side, material }) => {
-  const x = side * (HALL_HALF_WIDTH - 0.6);
+  const x = side * (HALL_HALF_WIDTH - SCALE(0.6));
   return (
     <group>
-      <mesh position={[x, 1.1, 0]} castShadow receiveShadow material={material}>
-        <boxGeometry args={[1, 1.2, HALL_LENGTH - 4]} />
+      <mesh position={[x, SCALE(1.1), 0]} castShadow receiveShadow material={material}>
+        <boxGeometry args={[SCALE(1), SCALE(1.2), HALL_LENGTH - SCALE(4)]} />
       </mesh>
-      <mesh position={[x, 7.4, 0]} castShadow receiveShadow material={material}>
-        <boxGeometry args={[1, 0.6, HALL_LENGTH - 4]} />
+      <mesh position={[x, SCALE(7.4), 0]} castShadow receiveShadow material={material}>
+        <boxGeometry args={[SCALE(1), SCALE(0.6), HALL_LENGTH - SCALE(4)]} />
       </mesh>
-      <mesh position={[x, 10.2, 0]} castShadow receiveShadow material={material}>
-        <boxGeometry args={[0.8, 0.5, HALL_LENGTH - 8]} />
+      <mesh position={[x, SCALE(10.2), 0]} castShadow receiveShadow material={material}>
+        <boxGeometry args={[SCALE(0.8), SCALE(0.5), HALL_LENGTH - SCALE(8)]} />
       </mesh>
     </group>
   );
@@ -338,13 +384,13 @@ const WallBands = ({ side, material }) => {
 const Doorway = ({ z, rotation, stoneMaterial, trimMaterial, metalMaterial }) => {
   const sideWidth = (HALL_WIDTH - DOOR_WIDTH) / 2;
   const lintelHeight = HALL_HEIGHT - DOOR_HEIGHT;
-  const frameWidth = 0.8;
-  const frameDepth = WALL_THICKNESS + 0.4;
-  const doorPanelWidth = DOOR_WIDTH / 2 - 0.8;
-  const doorPanelHeight = DOOR_HEIGHT - 0.4;
-  const doorPanelDepth = 0.4;
+  const frameWidth = SCALE(0.8);
+  const frameDepth = WALL_THICKNESS + SCALE(0.4);
+  const doorPanelWidth = DOOR_WIDTH / 2 - SCALE(0.8);
+  const doorPanelHeight = DOOR_HEIGHT - SCALE(0.4);
+  const doorPanelDepth = SCALE(0.4);
   const swing = Math.PI * 0.6;
-  const voidDepth = 22;
+  const voidDepth = SCALE(22);
 
   return (
     <group position={[0, 0, z]} rotation={[0, rotation, 0]}>
@@ -357,31 +403,46 @@ const Doorway = ({ z, rotation, stoneMaterial, trimMaterial, metalMaterial }) =>
       <mesh position={[0, DOOR_HEIGHT + lintelHeight / 2, 0]} material={stoneMaterial} receiveShadow>
         <boxGeometry args={[DOOR_WIDTH, lintelHeight, WALL_THICKNESS]} />
       </mesh>
-      <mesh position={[-DOOR_WIDTH / 2 + frameWidth / 2, DOOR_HEIGHT / 2, 0.2]} material={trimMaterial} castShadow receiveShadow>
+      <mesh
+        position={[-DOOR_WIDTH / 2 + frameWidth / 2, DOOR_HEIGHT / 2, SCALE(0.2)]}
+        material={trimMaterial}
+        castShadow
+        receiveShadow
+      >
         <boxGeometry args={[frameWidth, DOOR_HEIGHT, frameDepth]} />
       </mesh>
-      <mesh position={[DOOR_WIDTH / 2 - frameWidth / 2, DOOR_HEIGHT / 2, 0.2]} material={trimMaterial} castShadow receiveShadow>
+      <mesh
+        position={[DOOR_WIDTH / 2 - frameWidth / 2, DOOR_HEIGHT / 2, SCALE(0.2)]}
+        material={trimMaterial}
+        castShadow
+        receiveShadow
+      >
         <boxGeometry args={[frameWidth, DOOR_HEIGHT, frameDepth]} />
       </mesh>
-      <mesh position={[0, DOOR_HEIGHT - 0.2, 0.2]} material={trimMaterial} castShadow receiveShadow>
-        <boxGeometry args={[DOOR_WIDTH - frameWidth * 2, 0.5, frameDepth]} />
+      <mesh
+        position={[0, DOOR_HEIGHT - SCALE(0.2), SCALE(0.2)]}
+        material={trimMaterial}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[DOOR_WIDTH - frameWidth * 2, SCALE(0.5), frameDepth]} />
       </mesh>
-      <group position={[-DOOR_WIDTH / 2 + frameWidth, 0, 0.4]} rotation={[0, swing, 0]}>
+      <group position={[-DOOR_WIDTH / 2 + frameWidth, 0, SCALE(0.4)]} rotation={[0, swing, 0]}>
         <mesh position={[doorPanelWidth / 2, doorPanelHeight / 2, 0]} material={metalMaterial} castShadow receiveShadow>
           <boxGeometry args={[doorPanelWidth, doorPanelHeight, doorPanelDepth]} />
         </mesh>
       </group>
-      <group position={[DOOR_WIDTH / 2 - frameWidth, 0, 0.4]} rotation={[0, -swing, 0]}>
+      <group position={[DOOR_WIDTH / 2 - frameWidth, 0, SCALE(0.4)]} rotation={[0, -swing, 0]}>
         <mesh position={[-doorPanelWidth / 2, doorPanelHeight / 2, 0]} material={metalMaterial} castShadow receiveShadow>
           <boxGeometry args={[doorPanelWidth, doorPanelHeight, doorPanelDepth]} />
         </mesh>
       </group>
       <mesh position={[0, DOOR_HEIGHT / 2, -WALL_THICKNESS / 2 - voidDepth / 2]} castShadow={false}>
-        <boxGeometry args={[DOOR_WIDTH - 1, DOOR_HEIGHT, voidDepth]} />
+        <boxGeometry args={[DOOR_WIDTH - SCALE(1), DOOR_HEIGHT, voidDepth]} />
         <meshBasicMaterial color="#000000" side={THREE.BackSide} />
       </mesh>
-      <mesh position={[0, 0.1, 1.8]} material={trimMaterial} receiveShadow>
-        <boxGeometry args={[DOOR_WIDTH + 2, 0.2, 3]} />
+      <mesh position={[0, SCALE(0.1), SCALE(1.8)]} material={trimMaterial} receiveShadow>
+        <boxGeometry args={[DOOR_WIDTH + SCALE(2), SCALE(0.2), SCALE(3)]} />
       </mesh>
     </group>
   );
@@ -437,17 +498,27 @@ const World = () => {
       grainBase: 90,
       grainVariance: 90,
     });
+    const lanternGlass = new THREE.MeshStandardMaterial({
+      color: "#f5d2a2",
+      emissive: "#f0b56d",
+      emissiveIntensity: 1.3,
+      transparent: true,
+      opacity: 0.9,
+      roughness: 0.25,
+      metalness: 0,
+    });
     return {
       stone,
       stoneDark,
       stoneTrim,
       metal,
+      lanternGlass,
     };
   }, []);
 
   const columnPositions = useMemo(() => {
-    const xs = [-14, 14];
-    const zs = [-40, -15, 15, 40];
+    const xs = [-14, 14].map(SCALE);
+    const zs = [-40, -15, 15, 40].map(SCALE);
     const positions = [];
     xs.forEach((x) => {
       zs.forEach((z) => {
@@ -457,38 +528,38 @@ const World = () => {
     return positions;
   }, []);
 
-  const ribZPositions = useMemo(() => [-48, -32, -16, 0, 16, 32, 48], []);
-  const beamZPositions = useMemo(() => [-40, -20, 0, 20, 40], []);
-  const lightZPositions = useMemo(() => [-45, -30, -15, 0, 15, 30, 45], []);
-  const sideLightXPositions = useMemo(() => [-12, 12], []);
-  const floorLightZPositions = useMemo(() => [-40, -20, 0, 20, 40], []);
-  const floorLightXPositions = useMemo(() => [-16, 16], []);
+  const ribZPositions = useMemo(() => [-48, -32, -16, 0, 16, 32, 48].map(SCALE), []);
+  const beamZPositions = useMemo(() => [-40, -20, 0, 20, 40].map(SCALE), []);
+  const lightZPositions = useMemo(() => [-45, -30, -15, 0, 15, 30, 45].map(SCALE), []);
+  const sideLightXPositions = useMemo(() => [-12, 12].map(SCALE), []);
+  const floorLightZPositions = useMemo(() => [-40, -20, 0, 20, 40].map(SCALE), []);
+  const floorLightXPositions = useMemo(() => [-16, 16].map(SCALE), []);
 
   return (
     <>
-      <fog attach="fog" args={["#15110e", 28, 170]} />
+      <fog attach="fog" args={["#15110e", SCALE(28), SCALE(170)]} />
       <ambientLight intensity={0.7} />
       <hemisphereLight color="#f7e1c7" groundColor="#2c2521" intensity={0.85} />
       <directionalLight
-        position={[18, 24, 14]}
+        position={[SCALE(18), SCALE(24), SCALE(14)]}
         intensity={1.2}
         color="#f6d8b6"
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
         shadow-camera-near={1}
-        shadow-camera-far={110}
-        shadow-camera-left={-40}
-        shadow-camera-right={40}
-        shadow-camera-top={40}
-        shadow-camera-bottom={-40}
+        shadow-camera-far={SCALE(110)}
+        shadow-camera-left={-SCALE(40)}
+        shadow-camera-right={SCALE(40)}
+        shadow-camera-top={SCALE(40)}
+        shadow-camera-bottom={-SCALE(40)}
       />
       {lightZPositions.map((z) => (
         <pointLight
           key={`hall-light-${z}`}
-          position={[0, 9.6, z]}
+          position={[0, SCALE(9.6), z]}
           intensity={1.35}
-          distance={34}
+          distance={SCALE(34)}
           decay={2}
           color="#f6d3a8"
         />
@@ -498,9 +569,9 @@ const World = () => {
           {lightZPositions.map((z) => (
             <pointLight
               key={`side-light-${x}-${z}`}
-              position={[x, 7.2, z]}
+              position={[x, SCALE(7.2), z]}
               intensity={0.75}
-              distance={26}
+              distance={SCALE(26)}
               decay={2}
               color="#f2c89a"
             />
@@ -512,9 +583,9 @@ const World = () => {
           {floorLightZPositions.map((z) => (
             <pointLight
               key={`floor-light-${x}-${z}`}
-              position={[x, 2.6, z]}
+              position={[x, SCALE(2.6), z]}
               intensity={0.55}
-              distance={18}
+              distance={SCALE(18)}
               decay={2}
               color="#f7dcbc"
             />
@@ -524,17 +595,17 @@ const World = () => {
       <HeadLight />
       <group>
         <mesh position={[0, -FLOOR_THICKNESS / 2, 0]} receiveShadow material={materials.stoneDark}>
-          <boxGeometry args={[HALL_WIDTH + 6, FLOOR_THICKNESS, HALL_LENGTH + 6]} />
+          <boxGeometry args={[HALL_WIDTH + SCALE(6), FLOOR_THICKNESS, HALL_LENGTH + SCALE(6)]} />
         </mesh>
-        <mesh position={[0, 0.06, 0]} receiveShadow material={materials.stoneTrim}>
-          <boxGeometry args={[6.5, 0.12, HALL_LENGTH - 12]} />
+        <mesh position={[0, SCALE(0.06), 0]} receiveShadow material={materials.stoneTrim}>
+          <boxGeometry args={[SCALE(6.5), SCALE(0.12), HALL_LENGTH - SCALE(12)]} />
         </mesh>
         <mesh
           position={[0, HALL_HEIGHT + CEILING_THICKNESS / 2, 0]}
           receiveShadow
           material={materials.stone}
         >
-          <boxGeometry args={[HALL_WIDTH + 6, CEILING_THICKNESS, HALL_LENGTH + 6]} />
+          <boxGeometry args={[HALL_WIDTH + SCALE(6), CEILING_THICKNESS, HALL_LENGTH + SCALE(6)]} />
         </mesh>
         <mesh
           position={[-HALL_HALF_WIDTH - WALL_THICKNESS / 2, HALL_HEIGHT / 2, 0]}
@@ -570,6 +641,8 @@ const World = () => {
             position={position}
             stoneMaterial={materials.stone}
             trimMaterial={materials.stoneTrim}
+            lanternGlassMaterial={materials.lanternGlass}
+            lanternFrameMaterial={materials.metal}
           />
         ))}
         <WallRibs side={-1} material={materials.stoneTrim} ribZPositions={ribZPositions} />
@@ -579,23 +652,23 @@ const World = () => {
         {beamZPositions.map((z) => (
           <mesh
             key={`beam-${z}`}
-            position={[0, HALL_HEIGHT - 0.6, z]}
+            position={[0, HALL_HEIGHT - SCALE(0.6), z]}
             castShadow
             receiveShadow
             material={materials.stoneTrim}
           >
-            <boxGeometry args={[HALL_WIDTH - 2, 0.5, 1.6]} />
+            <boxGeometry args={[HALL_WIDTH - SCALE(2), SCALE(0.5), SCALE(1.6)]} />
           </mesh>
         ))}
-        {[-10, 0, 10].map((x) => (
+        {[-10, 0, 10].map(SCALE).map((x) => (
           <mesh
             key={`long-beam-${x}`}
-            position={[x, HALL_HEIGHT - 0.9, 0]}
+            position={[x, HALL_HEIGHT - SCALE(0.9), 0]}
             castShadow
             receiveShadow
             material={materials.stoneTrim}
           >
-            <boxGeometry args={[1.2, 0.6, HALL_LENGTH - 8]} />
+            <boxGeometry args={[SCALE(1.2), SCALE(0.6), HALL_LENGTH - SCALE(8)]} />
           </mesh>
         ))}
       </group>
