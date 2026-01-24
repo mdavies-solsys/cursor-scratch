@@ -1354,11 +1354,11 @@ const RemoteAvatar = ({ color, position, rotation }) => {
 
 // Load enemy face textures
 const useEnemyFaceTextures = () => {
-  const [textures, setTextures] = useState([null, null, null]);
+  const [textures, setTextures] = useState([null, null, null, null]);
   
   useEffect(() => {
     const loader = new THREE.TextureLoader();
-    const paths = ["/IMG_2364.jpeg", "/IMG_2365.jpeg", "/IMG_2366.jpeg"];
+    const paths = ["/IMG_2364.jpeg", "/IMG_2365.jpeg", "/IMG_2366.jpeg", "/IMG_2372.jpeg"];
     
     const loadedTextures = [];
     let loadedCount = 0;
@@ -1369,7 +1369,7 @@ const useEnemyFaceTextures = () => {
         (texture) => {
           loadedTextures[index] = texture;
           loadedCount++;
-          if (loadedCount === 3) {
+          if (loadedCount === paths.length) {
             setTextures([...loadedTextures]);
           }
         },
@@ -1378,7 +1378,7 @@ const useEnemyFaceTextures = () => {
           console.warn(`Failed to load face texture ${path}:`, error);
           loadedTextures[index] = null;
           loadedCount++;
-          if (loadedCount === 3) {
+          if (loadedCount === paths.length) {
             setTextures([...loadedTextures]);
           }
         }
