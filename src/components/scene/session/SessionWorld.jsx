@@ -4,14 +4,20 @@
  */
 import React, { useCallback, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { Enemy, VRSword } from "../../Combat.jsx";
+import { Enemy } from "../../Combat.jsx";
 import { useMultiplayer, useEnemyFaceTextures } from "../hooks/index.js";
 import { MovementRig } from "../controls/index.js";
 import { AVATAR_HEIGHT } from "../constants.js";
 import RemoteAvatar from "./RemoteAvatar.jsx";
+import { useVRCombatSync } from "../../../xrStore.jsx";
 
 /**
  * SessionWorld - VR session with multiplayer and combat
+ * 
+ * Note: The VR sword is rendered directly inside the right controller model
+ * (see xrStore.jsx). Combat callbacks are synced via useVRCombatSync hook,
+ * which uses a module-level state to communicate with the controller model
+ * since it's rendered outside our component tree by @react-three/xr.
  */
 const SessionWorld = () => {
   const { players, enemies, localIdRef, sendMove, sendAttack } = useMultiplayer();
@@ -38,6 +44,9 @@ const SessionWorld = () => {
     [sendAttack]
   );
 
+  // Sync combat state to the VR sword component (rendered in controller model)
+  useVRCombatSync(handleAttack, enemies);
+
   return (
     <>
       {remotePlayers.map((player) => (
@@ -63,8 +72,7 @@ const SessionWorld = () => {
         />
       ))}
       
-      {/* VR Sword */}
-      <VRSword onAttack={handleAttack} enemies={enemies} />
+      {/* VR Sword is rendered inside the right controller model - see xrStore.jsx */}
       <MovementRig onMove={handleMove} />
     </>
   );
